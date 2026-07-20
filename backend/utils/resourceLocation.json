@@ -1,0 +1,23 @@
+{
+  "Law": "Faculty of Law Library",
+  "Natural Science": "Bauchi Road Campus Library",
+  "Health Science": "Bauchi Road Campus Library",
+  "Medical Science": [
+    "Bauchi Road Campus Library",
+    "JUTH Library"
+  ],
+  "Education": [
+    "Bauchi Road Campus Library",
+    "Naraguta Campus Library"
+  ],
+  "Art": "Naraguta Campus Library",
+  "Social Science": "Naraguta Campus Library",
+  "Environmental Science": "Naraguta Campus Library",
+  "Management Science": "Naraguta Campus Library",
+  "Agricultural Science": "Naraguta Campus Library",
+  "Veterinary Medicine": "Naraguta Campus Library",
+  "Engineering": "Naraguta Campus Library",
+  "Pharmaceutical Science": "Bauchi Road Campus Library",
+  "Dental Science": "Bauchi Road Campus Library",
+  "Clinical Science": "JUTH Library"
+}

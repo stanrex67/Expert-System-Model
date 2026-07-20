@@ -1,0 +1,306 @@
+[
+  {
+    "intent": "ACCESS",
+    "question_patterns": [
+      "who can use the library",
+      "who can access the library",
+      "can outsiders use the library",
+      "who is allowed in the library",
+      "library access eligibility",
+      "is the library open to everyone",
+      "can non-students use the library"
+    ],
+    "answer": "All registered students, academic and non-academic staff can use the library. External researchers and visitors may also use the library but require special approval and may need to pay a fee.",
+    "tags": ["access", "membership"],
+    "priority": 6
+  },
+  {
+    "intent": "ENTRY",
+    "question_patterns": [
+      "what do i need to enter the library",
+      "library entry requirement",
+      "id card for library",
+      "can i enter without id card",
+      "do i need an id to use the library"
+    ],
+    "answer": "You need a valid University ID card or proof of registration (such as a school charges receipt) to enter the library.",
+    "tags": ["access", "entry"],
+    "priority": 5
+  },
+  {
+    "intent": "HOURS",
+    "question_patterns": [
+      "what are the library opening hours",
+      "what time does the library open",
+      "library closing time",
+      "library working days",
+      "when is the library open",
+      "is the library open on weekends",
+      "is the library open on saturday",
+      "is the library open on sunday",
+      "library hours"
+    ],
+    "answer": "The library is open Monday to Friday from 8:00 AM to 4:00 PM. Saturday hours vary by branch — please check with your specific branch. The library is closed on Sundays and public holidays.",
+    "tags": ["hours", "schedule"],
+    "priority": 6
+  },
+  {
+    "intent": "BORROW",
+    "question_patterns": [
+      "how do i borrow a book",
+      "how to borrow books",
+      "library lending process",
+      "can i borrow books",
+      "steps to borrow books"
+    ],
+    "answer": "To borrow a book, bring it to the circulation desk along with your University ID card and your borrower's ticket. Library staff will process the loan for you.",
+    "tags": ["borrowing"],
+    "priority": 5
+  },
+  {
+    "intent": "BORROW_LIMIT",
+    "question_patterns": [
+      "how many books can i borrow",
+      "borrowing limit",
+      "number of books allowed",
+      "library loan limit",
+      "how many books can i take"
+    ],
+    "answer": "Undergraduates may borrow up to 2 books for 2 weeks. Postgraduates may borrow up to 4 books for 1 month. Staff may borrow up to 5 books for 1 month.",
+    "tags": ["borrowing", "limits"],
+    "priority": 5
+  },
+  {
+    "intent": "RETURN",
+    "question_patterns": [
+      "how do i return a book",
+      "how to return books",
+      "where do i return books",
+      "book return process",
+      "return borrowed books"
+    ],
+    "answer": "Bring the book(s) to the circulation desk and library staff will process the return for you.",
+    "tags": ["borrowing", "return"],
+    "priority": 5
+  },
+  {
+    "intent": "RENEW",
+    "question_patterns": [
+      "can i renew a book",
+      "how do i renew library books",
+      "extend borrowing period",
+      "book renewal",
+      "renew borrowed book"
+    ],
+    "answer": "Books can be renewed at the circulation desk if they have not been requested by another user.",
+    "tags": ["borrowing", "renewal"],
+    "priority": 4
+  },
+  {
+    "intent": "FINE",
+    "question_patterns": [
+      "what happens if i return a book late",
+      "late return fine",
+      "overdue books penalty",
+      "library fine policy",
+      "what is the fine for late return",
+      "how much is the library fine"
+    ],
+    "answer": "Late returns attract fines and may result in the suspension of your borrowing privileges. The fine amount depends on how many days overdue the book is. Please ask at the circulation desk for the current fine rates.",
+    "tags": ["penalty", "rules"],
+    "priority": 5
+  },
+  {
+    "intent": "WIFI",
+    "question_patterns": [
+      "is there wifi in the library",
+      "library internet access",
+      "wifi hotspot library",
+      "can i use internet in the library",
+      "library wifi network"
+    ],
+    "answer": "Yes. The UNIJOS-Hotspot Wi-Fi network is available for students and staff within the library premises.",
+    "tags": ["facilities", "internet"],
+    "priority": 4
+  },
+  {
+    "intent": "ERESOURCES",
+    "question_patterns": [
+      "does the library have ebooks",
+      "are there e-resources",
+      "ebooks and journals",
+      "online library materials",
+      "digital resources library",
+      "how do i access online resources",
+      "how do i access library online resources"
+    ],
+    "answer": "Yes. The library provides access to electronic resources including e-books and academic journals through the university library website. Ask a librarian if you need help getting started.",
+    "tags": ["resources", "digital"],
+    "priority": 4
+  },
+  {
+    "intent": "PROJECTS",
+    "question_patterns": [
+      "can i borrow past projects",
+      "student dissertations access",
+      "thesis availability",
+      "past projects library",
+      "can i take dissertations home"
+    ],
+    "answer": "Past student projects, dissertations, and theses are available for reading within the library only and cannot be borrowed or taken out.",
+    "tags": ["resources", "restricted"],
+    "priority": 3
+  },
+  {
+    "intent": "RULES",
+    "question_patterns": [
+      "what are the library rules",
+      "can i eat in the library",
+      "can i use my phone in the library",
+      "library regulations",
+      "library code of conduct",
+      "am i allowed to eat in the library",
+      "is eating allowed in the library"
+    ],
+    "answer": "Library users are expected to maintain silence at all times, avoid eating or drinking inside the library, keep mobile phones on silent mode, and not reserve seats for others.",
+    "tags": ["rules"],
+    "priority": 5
+  },
+  {
+    "intent": "PHOTOCOPY",
+    "question_patterns": [
+      "is there photocopying in the library",
+      "printing in library",
+      "can i photocopy documents",
+      "library printing services",
+      "does the library offer printing"
+    ],
+    "answer": "Yes. Photocopying services are available in the library, subject to copyright regulations.",
+    "tags": ["services"],
+    "priority": 4
+  },
+  {
+    "intent": "HELP",
+    "question_patterns": [
+      "how do i get help in the library",
+      "library assistance",
+      "who can help me in the library",
+      "support from library staff",
+      "who do i contact in the library"
+    ],
+    "answer": "You can approach any library staff member or visit the circulation desk for assistance. Librarians are available to help you find resources, use the catalogue, and answer any questions.",
+    "tags": ["support"],
+    "priority": 5
+  },
+  {
+    "intent": "CATALOGUE",
+    "question_patterns": [
+      "how do i find a book",
+      "how to search for books",
+      "how do i locate materials",
+      "how to use library catalogue",
+      "does the library have a catalogue"
+    ],
+    "answer": "You can search for books using the library catalogue by title, author, or subject. Note the call number from the catalogue and use it to navigate to the correct shelf. You can also ask a librarian for assistance.",
+    "tags": ["search", "catalogue", "navigation"],
+    "priority": 5,
+    "tips": [
+      "Always start with the catalogue before going to shelves",
+      "Ask a librarian if you are unsure about call numbers",
+      "Use keywords instead of full sentences when searching"
+    ]
+  },
+  {
+    "intent": "USAGE",
+    "question_patterns": [
+      "how do i use the library",
+      "how to use the library",
+      "how does the library work",
+      "how can i use library services"
+    ],
+    "answer": "To use the library, start by searching for your desired book in the catalogue. Note the call number and use it to find the book on the shelf. Present your ID card at the circulation desk to borrow books. You can also ask a librarian for help at any point.",
+    "tags": ["usage", "general"],
+    "priority": 5,
+    "tips": [
+      "Start by searching the book title or subject in the catalogue",
+      "Use the call number to locate the book on the shelf",
+      "Ask at the circulation desk if you are unsure"
+    ]
+  },
+  {
+    "intent": "CHALLENGES",
+    "question_patterns": [
+      "what challenges do users face",
+      "why cant i find books",
+      "problems in library usage",
+      "difficulties accessing materials"
+    ],
+    "answer": "Users often face challenges such as lack of search skills, difficulty understanding classification systems, and limited awareness of available resources. Attending library orientation and seeking help from librarians early can make a big difference.",
+    "tags": ["issues", "user_experience"],
+    "priority": 3,
+    "tips": [
+      "Attend library orientation programs",
+      "Learn basic catalogue search techniques",
+      "Seek help early instead of struggling alone"
+    ]
+  },
+  {
+    "intent": "TECHNOLOGY",
+    "question_patterns": [
+      "can technology help library services",
+      "role of technology in library",
+      "digital library benefits",
+      "use of ai in library"
+    ],
+    "answer": "Technology enhances library services by enabling faster information retrieval, providing access to digital resources, and supporting virtual assistance tools. The library leverages digital catalogues and online databases to improve user experience.",
+    "tags": ["technology", "digital"],
+    "priority": 4,
+    "tips": [
+      "Use online databases instead of only physical books",
+      "Leverage AI tools for faster search",
+      "Explore e-books and journals regularly"
+    ]
+  },
+  {
+    "intent": "COMMUNICATION",
+    "question_patterns": [
+      "how can users interact with librarians",
+      "communication with library staff",
+      "can i chat with a librarian",
+      "remote library assistance"
+    ],
+    "answer": "Users can interact with librarians through physical visits, email, social media platforms, and virtual tools such as live chat or video conferencing where available.",
+    "tags": ["communication", "support"],
+    "priority": 4,
+    "tips": [
+      "Use available online communication channels",
+      "Schedule virtual consultations if available",
+      "Follow library social media for updates"
+    ]
+  },
+  {
+    "intent": "REGISTER",
+    "question_patterns": [
+      "how do i register as a library user",
+      "how to register for library",
+      "library registration process",
+      "how do i get a library card",
+      "can i access the library without registration"
+    ],
+    "answer": "Library registration is done using your student or staff ID. Visit the library or the circulation desk to complete registration and obtain your borrower's ticket. You must be registered or have valid identification to access the library.",
+    "tags": ["registration", "access"],
+    "priority": 5
+  },
+  {
+    "intent": "LOST_BOOK",
+    "question_patterns": [
+      "what do i do if i lost a library book",
+      "i lost a borrowed book",
+      "lost library book policy",
+      "what happens if i lose a book"
+    ],
+    "answer": "Report the lost book to the circulation desk as soon as possible. You may be required to replace the book or pay the cost of replacement.",
+    "tags": ["rules", "penalty"],
+    "priority": 4
+  }
+]

@@ -1,0 +1,372 @@
+[
+  {
+    "name": "AGORA - Access to Global Research in Agriculture",
+    "url": "https://agora.research4life.org/",
+    "faculties": [
+      "Agricultural Science"
+    ],
+    "accessNote": "Meet your subject librarian for login credentials",
+    "description": "Set up by the FAO with major publishers to give developing countries access to a digital library collection in food, agriculture, environmental science and related social sciences — up to 15,500 journals and 48,000 books across 115+ countries. Part of the Research4Life partnership."
+  },
+  {
+    "name": "ACM Digital Library",
+    "url": "https://dl.acm.org/",
+    "faculties": [
+      "Computer Science",
+      "Natural Science",
+      "Medical Science"
+    ],
+    "accessNote": null,
+    "description": "A research, discovery and networking platform containing the full-text collection of all ACM publications (journals, conference proceedings, technical magazines, newsletters, books), plus the ACM Guide to Computing Literature."
+  },
+  {
+    "name": "Africa Commons",
+    "url": "https://africacommons.net/orgs/university-of-jos-ng/",
+    "faculties": [
+      "Art",
+      "Social Science"
+    ],
+    "accessNote": null,
+    "description": "A project to digitize, disseminate and discover African cultural materials, helping African scholars find and access expressions of their heritage held internationally. UNIJOS is the only university given access to the beta site. Note: materials span centuries and may include historically sensitive content."
+  },
+  {
+    "name": "African Online Digital Library (AODL)",
+    "url": "https://aodl.org/",
+    "faculties": [
+      "Art",
+      "Social Science"
+    ],
+    "accessNote": null,
+    "description": "Provides free universal access to cultural heritage materials from and about African countries — digitized photographs, videos, archival documents, maps, interviews and oral histories in numerous African languages."
+  },
+  {
+    "name": "AJLS-TERAS (EBSCOhost)",
+    "url": "https://www.ebsco.com/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": "Meet your subject librarian for login credentials",
+    "description": "TETFund-sponsored access for staff and students to high-quality research materials and journals — millions of interdisciplinary scholarly works, over 3,300 eBook titles, and 3,000,000+ academic materials.",
+    "needsReview": "Original link supplied was a pre-authenticated EBSCOhost session URL (contains an embedded, time-limited login token) and cannot be used as a permanent link. Replaced with the general EBSCO URL pending a proper institutional SSO link from the library."
+  },
+  {
+    "name": "ARDI - Research for Innovation",
+    "url": "https://ardi.research4life.org/",
+    "faculties": [
+      "Multidisciplinary",
+      "Engineering"
+    ],
+    "accessNote": "Meet your subject librarian for login credentials",
+    "description": "Coordinated by WIPO to increase availability of scientific and technical information in developing countries, supporting researchers creating solutions to technical challenges at local and global levels."
+  },
+  {
+    "name": "Berghahn Journals",
+    "url": "https://www.berghahnjournals.com/",
+    "faculties": [
+      "Art",
+      "Social Science"
+    ],
+    "accessNote": null,
+    "description": "The journals division of Berghahn Books, an independent scholarly publisher in the humanities and social sciences committed to the highest academic standards."
+  },
+  {
+    "name": "BioOne Digital Library",
+    "url": "https://bioone.org/",
+    "faculties": [
+      "Natural Science",
+      "Environmental Science",
+      "Agricultural Science"
+    ],
+    "accessNote": null,
+    "description": "A community-based platform providing global distribution for more than 350 journals and eBooks in the biological, ecological, and environmental sciences, including the BioOne Complete Archive and ESA eBook Collection."
+  },
+  {
+    "name": "BNEUF - Digital Library of the Francophone University Space",
+    "url": "https://bneuf.auf.org/",
+    "faculties": [
+      "Art",
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "Part of the Initiative for the Development of Digital in the French-speaking University Space (IDNEUF), offering unified authentication across AUF applications including the Digital Library and AUF Social Network."
+  },
+  {
+    "name": "CORE",
+    "url": "https://core.ac.uk/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "Provides a comprehensive bibliographic database of the world's scholarly literature, collecting and indexing research from repositories and journals — the world's largest collection of full-text open access research papers."
+  },
+  {
+    "name": "EconBiz",
+    "url": "https://www.econbiz.de/",
+    "faculties": [
+      "Management Science",
+      "Social Science"
+    ],
+    "accessNote": null,
+    "description": "Search for economics scholarly literature quickly and professionally — articles, working papers, e-books, with an integrated Thesaurus for Economics (STW) for topic-based searching."
+  },
+  {
+    "name": "Elsevier - ScienceDirect",
+    "url": "https://www.sciencedirect.com/",
+    "faculties": [
+      "Natural Science",
+      "Engineering",
+      "Medical Science"
+    ],
+    "accessNote": "Meet your subject librarian for login credentials",
+    "description": "Elsevier's premier platform of peer-reviewed scholarly literature spanning physical sciences, engineering, technical and health literature. 1.4 million articles on ScienceDirect are open access."
+  },
+  {
+    "name": "GOALI - Global Online Access to Legal Information",
+    "url": "https://www.ilo.org/goali/lang--en/index.htm",
+    "faculties": [
+      "Law"
+    ],
+    "accessNote": "Meet your subject librarian for login credentials",
+    "description": "Provides free or low-cost online access to legal research and training in the developing world — peer-reviewed journals, publications and databases in selected areas of law for researchers, students, and legal professionals."
+  },
+  {
+    "name": "HINARI - Health Internetwork Access to Research Initiative",
+    "url": "https://portal.research4life.org/content/hinari",
+    "faculties": [
+      "Health Science",
+      "Medical Science",
+      "Clinical Science"
+    ],
+    "accessNote": "Meet your subject librarian for login credentials",
+    "description": "Offers access to thousands of journals, books, and other resources in biomedical and health sciences, searchable through a special version of PubMed (Medline) and other databases."
+  },
+  {
+    "name": "HeinOnline",
+    "url": "https://heinonline.org/HOL/Welcome",
+    "faculties": [
+      "Law",
+      "Multidisciplinary"
+    ],
+    "accessNote": "Meet your subject librarian for login credentials",
+    "description": "Launched in 2000 with the Law Journal Library as its first database; has since grown to nearly 40 other disciplines beyond law, relied on by millions of researchers."
+  },
+  {
+    "name": "HSTalks - The Biomedical & Life Sciences Collection",
+    "url": "https://hstalks.com/biosci/",
+    "faculties": [
+      "Health Science",
+      "Medical Science"
+    ],
+    "accessNote": "IP-authenticated — must be connected to the university network to access",
+    "description": "Over 3,700 specially produced audio-visual lectures, seminar-style talks and case studies by world-renowned experts (including Nobel Laureates), covering biochemistry, genomics, immunology, clinical practice and digital therapeutics."
+  },
+  {
+    "name": "IEEE Xplore Digital Library",
+    "url": "https://ieeexplore.ieee.org/Xplore/home.jsp",
+    "faculties": [
+      "Engineering",
+      "Computer Science"
+    ],
+    "accessNote": null,
+    "description": "The flagship digital platform for discovery and access to scientific and technical content from IEEE and its publishing partners — over 6 million documents in electrical engineering, computer science and related fields."
+  },
+  {
+    "name": "Internet Archive",
+    "url": "https://archive.org/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "A non-profit digital library of millions of free books, movies, software, music, websites and more, providing free access to researchers, historians, scholars and the general public."
+  },
+  {
+    "name": "IMF eLibrary",
+    "url": "https://www.elibrary.imf.org/",
+    "faculties": [
+      "Management Science",
+      "Social Science"
+    ],
+    "accessNote": null,
+    "description": "Direct access to the IMF's periodicals, books, working papers, studies, and data/statistical tools covering macroeconomics, globalization, development, trade, and policy advice."
+  },
+  {
+    "name": "JSTOR - Journal Storage Project",
+    "url": "https://www.jstor.org/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": "Access provided by institutional IP",
+    "description": "Access to more than 12 million journal articles, books, images and primary sources across 75 disciplines, including artworks, maps and photographs. Part of ITHAKA, alongside Artstor, Ithaka S+R, and Portico."
+  },
+  {
+    "name": "OARE - Online Access to Research in the Environment",
+    "url": "http://oare.research4life.org/content/en/journals.php",
+    "faculties": [
+      "Environmental Science"
+    ],
+    "accessNote": null,
+    "description": "Provides developing countries free or low-cost access to peer-reviewed environment journals, books and databases — up to 11,500 journals and 27,000 e-books in 118 countries. Part of the Research4Life partnership."
+  },
+  {
+    "name": "OpenEdition",
+    "url": "https://www.openedition.org/?lang=en",
+    "faculties": [
+      "Art",
+      "Social Science"
+    ],
+    "accessNote": null,
+    "description": "Brings together four platforms dedicated to electronic resources in the humanities and social sciences."
+  },
+  {
+    "name": "Oxford Journals",
+    "url": "https://academic.oup.com/journals",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "Home of 500 peer-reviewed journals published by Oxford University Press and learned societies from around the world."
+  },
+  {
+    "name": "NDLTD - Networked Digital Library of Theses and Dissertations",
+    "url": "https://ndltd.org/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "An international organization promoting the creation, use, and preservation of electronic theses and dissertations (ETDs), supporting open access to scholarship worldwide."
+  },
+  {
+    "name": "ProQuest Ebook Central",
+    "url": "https://ebookcentral.proquest.com/auth/lib/fjpw/login.action",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": "Meet your subject librarian for login credentials",
+    "description": "An intuitive ebook platform giving students, faculty and researchers seamless access to the ebooks they need, with discovery, selection and administration tools."
+  },
+  {
+    "name": "ProQuest Research Library",
+    "url": "https://www.proquest.com/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": "Meet your subject librarian for login credentials",
+    "description": "Academic Complete: a comprehensive, multi-disciplinary foundation drawing on 20 years of ebook curation, relied on by libraries worldwide."
+  },
+  {
+    "name": "PubMed",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/",
+    "faculties": [
+      "Health Science",
+      "Medical Science",
+      "Clinical Science"
+    ],
+    "accessNote": null,
+    "description": "More than 36 million citations for biomedical literature from MEDLINE, life science journals, and online books, with links to full text where available."
+  },
+  {
+    "name": "Sage Open",
+    "url": "https://journals.sagepub.com/home/sgo",
+    "faculties": [
+      "Social Science",
+      "Art"
+    ],
+    "accessNote": null,
+    "description": "A peer-reviewed, Gold open access journal publishing original research and review articles spanning the social and behavioral sciences and humanities."
+  },
+  {
+    "name": "Semantic Scholar",
+    "url": "https://www.semanticscholar.org/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "Free, AI-driven search and discovery tools indexing over 200 million academic papers, helping researchers understand a paper at a glance and discover connections between works."
+  },
+  {
+    "name": "Scopus",
+    "url": "https://www.scopus.com/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "An abstract and citation database of peer-reviewed literature — scientific journals, books and conference proceedings — covering science, technology, medicine, social sciences, arts and humanities."
+  },
+  {
+    "name": "Springer Nature",
+    "url": "https://www.springernature.com/gp",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "Advances discovery by publishing trusted research, supporting new ideas and championing open science across all disciplines."
+  },
+  {
+    "name": "TEEAL - The Essential Electronic Agricultural Library",
+    "url": "http://teaal.unijos.edu.ng/",
+    "faculties": [
+      "Agricultural Science"
+    ],
+    "accessNote": null,
+    "description": "An electronic agricultural library resource hosted for UNIJOS, providing access to key agricultural research literature."
+  },
+  {
+    "name": "DATAD - Database of African Theses and Dissertations",
+    "url": "https://aau.org/current-projects/database-of-african-theses-and-dissertations-research-datad-r/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "A programme to improve management and access to African scholarly work — an abstracts database containing information from 11 African institutions, some dating back to 1982."
+  },
+  {
+    "name": "The National Academies Press",
+    "url": "https://nap.nationalacademies.org/",
+    "faculties": [
+      "Natural Science",
+      "Engineering",
+      "Medical Science"
+    ],
+    "accessNote": null,
+    "description": "Publishes more than 200 titles per year on science, engineering, and medicine, providing authoritative, independently researched information on science and health policy."
+  },
+  {
+    "name": "The Royal Society",
+    "url": "https://royalsociety.org/",
+    "faculties": [
+      "Natural Science"
+    ],
+    "accessNote": null,
+    "description": "An independent UK scientific academy dedicated to promoting excellence in science for the benefit of humanity, publishing research across many scientific fields."
+  },
+  {
+    "name": "UNESCO Digital Library",
+    "url": "https://unesdoc.unesco.org/",
+    "faculties": [
+      "Social Science",
+      "Art",
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "Provides access to publications and documents produced by or pertaining to UNESCO's fields of competence — education, natural sciences, social and human sciences, culture, and communication — with over 350,000 documents dating back to 1945."
+  },
+  {
+    "name": "World Bank Group Archives",
+    "url": "https://www.worldbank.org/ext/en/home",
+    "faculties": [
+      "Management Science",
+      "Social Science"
+    ],
+    "accessNote": null,
+    "description": "Preserves the institutional memory of the World Bank Group and provides public access to records of the IBRD and the International Development Association (IDA)."
+  },
+  {
+    "name": "Zendy Library",
+    "url": "https://zendy.io/",
+    "faculties": [
+      "Multidisciplinary"
+    ],
+    "accessNote": null,
+    "description": "Aims to make academic content affordable and accessible for everyone, fostering collaboration between publishers and research communities to ensure inclusive, equitable dissemination of knowledge."
+  }
+]

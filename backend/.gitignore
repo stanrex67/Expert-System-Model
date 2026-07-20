@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Environment variables (contains real API keys — never commit)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Python ML microservice (if it lives inside backend/)
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.pkl
+
+# Build output (if any)
+dist/
+build/
