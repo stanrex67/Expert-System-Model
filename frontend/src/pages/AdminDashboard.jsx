@@ -102,21 +102,11 @@ function StatCard({ icon, label, value, sub, color = T.gold, loading }) {
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 function Section({ title, action, children }) {
   return (
-    <Box sx={{
-      bgcolor: T.white, borderRadius: 2.5,
-      border: `1px solid ${T.border}`,
-      overflow: "hidden",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-    }}>
-      <Box sx={{
-        px: 2.5, py: 1.8,
-        borderBottom: `1px solid ${T.border}`,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
-        <Typography fontWeight={700} color={T.navy}
-          sx={{ fontFamily: "'Georgia', serif", fontSize: "0.95rem" }}>
+    <Box sx={{ bgcolor: T.white, borderRadius: 2.5, border: `1px solid ${T.border}`, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+      <Box sx={{ px: 2.5, py: 1.8, borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Box sx={{ fontWeight: 700, color: T.navy, fontFamily: "'Georgia', serif", fontSize: "0.95rem", display: "flex", alignItems: "center" }}>
           {title}
-        </Typography>
+        </Box>
         {action}
       </Box>
       <Box sx={{ p: 2.5 }}>{children}</Box>
@@ -165,7 +155,8 @@ export default function AdminDashboard() {
 
   const [loadingMap,  setLoadingMap]  = useState({});
   const [errors,      setErrors]      = useState({});
-
+  const [deleteError, setDeleteError] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   // ── Log filters ─────────────────────────────────────────────────────────
   const [logFilters, setLogFilters] = useState({
     type: "", success: "", page: 1, limit: 15,
@@ -224,14 +215,21 @@ export default function AdminDashboard() {
   useEffect(() => { loadLogs(); }, [loadLogs]);
 
   // ── Delete user ──────────────────────────────────────────────────────────
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    try {
-      await API.delete(`/admin/users/${deleteTarget._id}`);
-      setUsers(prev => prev.filter(u => u._id !== deleteTarget._id));
-    } catch { /* non-critical */ }
+
+const confirmDelete = async () => {
+  if (!deleteTarget) return;
+  setDeleting(true);
+  setDeleteError(null);
+  try {
+    await API.delete(`/admin/users/${deleteTarget._id}`);
+    setUsers(prev => prev.filter(u => u._id !== deleteTarget._id));
     setDeleteTarget(null);
-  };
+  } catch (e) {
+    setDeleteError(e?.response?.data?.message || "Failed to delete user.");
+  } finally {
+    setDeleting(false);
+  }
+};
 
   // ── Upload books ─────────────────────────────────────────────────────────
   const handleUpload = async () => {
@@ -799,7 +797,7 @@ export default function AdminDashboard() {
                 <Typography variant="body2" color={T.muted} mb={2} fontSize="0.83rem">
                   Each book object should include: <code>title</code>, <code>main_author</code>,
                   <code>call_number</code>, <code>subjects</code> (array), and optionally
-                  <code>publisher</code>, <code>pub_year</code>, <code>notes</code>.
+                  <code>publisher</code>, <code>year</code>, <code>notes</code>.
                 </Typography>
 
                 <Box sx={{
@@ -808,15 +806,15 @@ export default function AdminDashboard() {
                   lineHeight: 1.6,
                 }}>
                   {`[
-  {
-    "title": "Introduction to Law",
-    "main_author": "Adamu, James",
-    "call_number": "K100 .A32 2020",
-    "subjects": ["Law", "Legal studies"],
-    "publisher": "UNIJOS Press",
-    "pub_year": "2020"
-  }
-]`}
+                      {
+                        "title": "Introduction to Law",
+                        "main_author": "Adamu, James",
+                        "call_number": "K100 .A32 2020",
+                        "subjects": ["Law", "Legal studies"],
+                        "publisher": "UNIJOS Press",
+                        "year": "2020"
+                      }
+                    ]`}
                 </Box>
 
                 <TextField
@@ -870,6 +868,12 @@ export default function AdminDashboard() {
         <DialogTitle sx={{ fontFamily: "'Georgia', serif", fontWeight: 700, color: T.navy, pt: 3 }}>
           Delete User
         </DialogTitle>
+        <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}
+        PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", minWidth: 320 } }}>
+        <Box sx={{ height: 4, bgcolor: T.error }} />
+        <DialogTitle sx={{ fontFamily: "'Georgia', serif", fontWeight: 700, color: T.navy, pt: 3 }}>
+          Delete User
+        </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color={T.muted}>
             Are you sure you want to delete{" "}
@@ -878,18 +882,20 @@ export default function AdminDashboard() {
             </Box>
             ? This action cannot be undone.
           </Typography>
+          {deleteError && <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>{deleteError}</Alert>}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-          <Button onClick={() => setDeleteTarget(null)}
+          <Button onClick={() => { setDeleteTarget(null); setDeleteError(null); }}
             sx={{ color: T.muted, textTransform: "none", borderRadius: 2 }}>
             Cancel
           </Button>
-          <Button onClick={confirmDelete} variant="contained"
+          <Button onClick={confirmDelete} variant="contained" disabled={deleting}
             sx={{ bgcolor: T.error, color: T.white, textTransform: "none",
               borderRadius: 2, "&:hover": { bgcolor: "#a93226" } }}>
-            Delete
+            {deleting ? "Deleting…" : "Delete"}
           </Button>
         </DialogActions>
+        </Dialog>
       </Dialog>
     </Box>
   );

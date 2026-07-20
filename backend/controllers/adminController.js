@@ -1,6 +1,9 @@
 import User from "../models/user.js";
 import Book from "../models/book.js";
 import Log from "../models/log.js";
+import mongoose from "mongoose";
+
+
 
 // 👤 GET ALL USERS
 export const getUsers = async (req, res) => {
@@ -10,8 +13,37 @@ export const getUsers = async (req, res) => {
 
 // ❌ DELETE USER
 export const deleteUser = async (req, res) => {
-  await User.findByIdAndDelete(req.params.id);
-  res.json({ message: "User deleted" });
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    if (req.user?.id === id) {
+      return res.status(400).json({ message: "You cannot delete your own account" });
+    }
+
+    const target = await User.findById(id);
+    if (!target) return res.status(404).json({ message: "User not found" });
+
+    if (target.role === "admin") {
+      const adminCount = await User.countDocuments({ role: "admin" });
+      if (adminCount <= 1) {
+        return res.status(400).json({ message: "Cannot delete the last remaining admin account" });
+      }
+    }
+
+    await User.findByIdAndDelete(id);
+
+    await Log.create({
+      type: "ADMIN", action: "DELETE_USER",
+      user: req.user?._id, response: `Deleted user ${id}`, success: true,
+    });
+
+    res.json({ message: "User deleted" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // 📊 SYSTEM STATS
@@ -47,40 +79,14 @@ export const getLogs = async (req, res) => {
       limit = 20
     } = req.query;
 
-    let filter = {};
+ const sanitize = (v) => (typeof v === "string" ? v : undefined);
 
-    // 🔹 Filter by type (AI / AUTH)
-    if (type) {
-      filter.type = type;
-    }
+let filter = {};
+if (sanitize(type))   filter.type = type;
+if (sanitize(action)) filter.action = action;
+if (success !== undefined) filter.success = success === "true";
+if (sanitize(userId) && mongoose.isValidObjectId(userId)) filter.user = userId;
 
-    // 🔹 Filter by action (LOGIN, REGISTER, etc.)
-    if (action) {
-      filter.action = action;
-    }
-
-    // 🔹 Filter by success
-    if (success !== undefined) {
-      filter.success = success === "true";
-    }
-
-    // 🔹 Filter by user
-    if (userId) {
-      filter.user = userId;
-    }
-
-    // 🔹 Filter by date range
-    if (startDate || endDate) {
-      filter.createdAt = {};
-
-      if (startDate) {
-        filter.createdAt.$gte = new Date(startDate);
-      }
-
-      if (endDate) {
-        filter.createdAt.$lte = new Date(endDate);
-      }
-    }
 
     // 🔹 Pagination
     const skip = (page - 1) * limit;
@@ -107,25 +113,45 @@ export const getLogs = async (req, res) => {
 
 // 📊 PERFORMANCE METRICS
 export const getPerformance = async (req, res) => {
-  const logs = await Log.find();
+  try {
+    const result = await Log.aggregate([
+      { $group: { _id: null, avgTime: { $avg: "$responseTime" }, count: { $sum: 1 } } }
+    ]);
 
-  const avgResponseTime =
-    logs.reduce((acc, l) => acc + (l.responseTime || 0), 0) /
-    (logs.length || 1);
-
-  res.json({
-    averageResponseTime: avgResponseTime.toFixed(2),
-    totalQueries: logs.length
-  });
+    res.json({
+      averageResponseTime: (result[0]?.avgTime || 0).toFixed(2),
+      totalQueries: result[0]?.count || 0,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // 📂 BULK UPLOAD BOOKS
 export const uploadBooks = async (req, res) => {
-  const books = req.body; // array
+  try {
+    const books = req.body;
 
-  await Book.insertMany(books);
+    if (!Array.isArray(books) || books.length === 0) {
+      return res.status(400).json({ message: "Request body must be a non-empty array of books" });
+    }
+    if (books.length > 2000) {
+      return res.status(400).json({ message: "Upload too large — split into smaller batches (max 2000)" });
+    }
 
-  res.json({ message: "Books uploaded successfully" });
+    const invalid = books.filter(b => !b.title || !b.call_number);
+    if (invalid.length > 0) {
+      return res.status(400).json({
+        message: `${invalid.length} entries missing required fields (title, call_number)`,
+      });
+    }
+
+    const result = await Book.insertMany(books, { ordered: false });
+    res.json({ message: "Books uploaded successfully", count: result.length });
+
+  } catch (error) {
+    res.status(500).json({ message: "Bulk upload failed", error: error.message });
+  }
 };
 
 // 📊 OVERVIEW METRICS
@@ -277,3 +303,4 @@ export const getAuthStats = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
