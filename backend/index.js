@@ -15,9 +15,21 @@ const app = express();
 connectDB();
 
 //  ENABLE CORS
+const allowedOrigins = [
+  "http://localhost:5173",
+  process.env.CLIENT_URL, // set this on Railway once your frontend is deployed
+].filter(Boolean);
+
 app.use(cors({
-  origin: "http://localhost:5173", // your frontend
-  credentials: true
+  origin: (origin, callback) => {
+    // allow requests with no origin (e.g. mobile apps, curl, Postman)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
 }));
 
 app.use(express.json());
@@ -27,6 +39,6 @@ app.use("/api/ai", aiRoute);
 app.use("/api/auth", authRoute);
 app.use("/api/admin", adminRoute);
 
-app.listen(5000, () => {
-  console.log("🚀 Server running on port 5000");
+app.listen(8080, () => {
+  console.log("🚀 Server running on port 8080");
 });
