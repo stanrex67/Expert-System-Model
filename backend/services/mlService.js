@@ -2,7 +2,7 @@ import axios from "axios";
 
 export const getMLIntent = async (query) => {
   try {
-    const res = await axios.post("http://localhost:5001/predict", {
+    const res = await axios.post("https://uj-expert-system-production-d10d.up.railway.app/predict", {
       query
     });
 
