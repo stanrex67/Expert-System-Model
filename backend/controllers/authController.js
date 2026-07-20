@@ -12,6 +12,19 @@ dotenv.config();
 // In production set CLIENT_URL in your .env to your deployed frontend URL
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
+const buildVerificationEmail = (name, link) => `
+  <div style="font-family: Georgia, serif; max-width: 520px; margin: auto; padding: 32px; border: 1px solid #D6CFC0; border-radius: 8px;">
+    <h2 style="color: #0B1F3A;">Welcome to UNIJOS Library, ${name}!</h2>
+    <p style="color: #6b7280;">Please verify your email address to activate your account.</p>
+    <a href="${link}" style="display:inline-block; margin-top:16px; padding:12px 28px; background:#C9A84C; color:#0B1F3A; font-weight:bold; border-radius:6px; text-decoration:none;">
+      Verify Account
+    </a>
+    <p style="margin-top:24px; font-size:0.8rem; color:#9ca3af;">
+      This link expires in 1 hour. If you did not register, ignore this email.
+    </p>
+  </div>
+`;
+
 // ── Register ──────────────────────────────────────────────────────────────────
 export const register = async (req, res) => {
   const startTime = Date.now();
@@ -19,58 +32,92 @@ export const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // Check duplicate
     const existing = await User.findOne({ email });
+
     if (existing) {
-      return res.status(400).json({ message: "An account with this email already exists." });
+      if (existing.isVerified) {
+        return res.status(400).json({ message: "An account with this email already exists. Please sign in instead." });
+      }
+
+      // Account exists but was never verified — likely a previous failed
+      // email send. Regenerate the token and resend, rather than permanently
+      // blocking this email address.
+      const verificationToken = generateToken();
+      existing.verificationToken = verificationToken;
+      existing.verificationTokenExpires = Date.now() + 3600000;
+      // Allow them to update their name/password if they're retrying registration
+      if (password) existing.password = await bcrypt.hash(password, 10);
+      if (name) existing.name = name;
+      await existing.save();
+
+      const link = `${CLIENT_URL}/verify/${verificationToken}`;
+
+      try {
+        await sendEmail({
+          to: email,
+          subject: "Verify your UNIJOS Library account",
+          html: buildVerificationEmail(existing.name, link),
+        });
+      } catch (emailError) {
+        console.error("Resend verification email failed:", emailError.message);
+        await logEvent({ type: "AUTH", action: "REGISTER", user: existing._id, email, success: false,
+          response: `Email resend failed: ${emailError.message}`, req });
+        return res.status(502).json({
+          message: "Your account exists but we couldn't send the verification email right now. Please try again shortly.",
+        });
+      }
+
+      await logEvent({ type: "AUTH", action: "REGISTER", user: existing._id, email, success: true,
+        response: "Resent verification email", req, responseTime: Date.now() - startTime });
+
+      return res.json({ message: "A new verification link has been sent to your email." });
     }
 
-    const hashedPassword      = await bcrypt.hash(password, 10);
-    const verificationToken   = generateToken();
+    // ── Brand-new registration ──────────────────────────────────────────────
+    const hashedPassword    = await bcrypt.hash(password, 10);
+    const verificationToken = generateToken();
 
     const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      role: role || "student",
+      name, email, password: hashedPassword, role: role || "student",
       verificationToken,
-      verificationTokenExpires: Date.now() + 3600000, // 1 hour
+      verificationTokenExpires: Date.now() + 3600000,
     });
 
     const link = `${CLIENT_URL}/verify/${verificationToken}`;
 
-    await sendEmail({
-      to:      email,
-      subject: "Verify your UNIJOS Library account",
-      html: `
-        <div style="font-family: Georgia, serif; max-width: 520px; margin: auto; padding: 32px; border: 1px solid #D6CFC0; border-radius: 8px;">
-          <h2 style="color: #0B1F3A;">Welcome to UNIJOS Library, ${name}!</h2>
-          <p style="color: #6b7280;">Please verify your email address to activate your account.</p>
-          <a href="${link}" style="display:inline-block; margin-top:16px; padding:12px 28px; background:#C9A84C; color:#0B1F3A; font-weight:bold; border-radius:6px; text-decoration:none;">
-            Verify Account
-          </a>
-          <p style="margin-top:24px; font-size:0.8rem; color:#9ca3af;">
-            This link expires in 1 hour. If you did not register, ignore this email.
-          </p>
-        </div>
-      `,
-    });
+    // ── Email send is now isolated — if it fails, the user is told clearly
+    //    and can retry (which now hits the "resend" branch above, not a dead end) ──
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Verify your UNIJOS Library account",
+        html: buildVerificationEmail(name, link),
+      });
+    } catch (emailError) {
+      console.error("Verification email failed to send:", emailError.message);
+      await logEvent({ type: "AUTH", action: "REGISTER", user: user._id, email, success: false,
+        response: `Account created but email failed: ${emailError.message}`, req });
 
-    await logEvent({
-      type: "AUTH", action: "REGISTER",
-      user: user._id, email, success: true,
-      req, responseTime: Date.now() - startTime,
-    });
+      return res.status(202).json({
+        message: "Account created, but we couldn't send the verification email right now. Please try registering again with the same email to resend it.",
+      });
+    }
+
+    await logEvent({ type: "AUTH", action: "REGISTER", user: user._id, email, success: true,
+      req, responseTime: Date.now() - startTime });
 
     res.json({ message: "Registration successful. Check your email to verify your account." });
 
   } catch (error) {
-    await logEvent({
-      type: "AUTH", action: "REGISTER",
-      email: req.body?.email, success: false,
-      response: error.message, req,
-    });
-    res.status(500).json({ message: error.message });
+    // Handle the race-condition case: two near-simultaneous requests for the
+    // same email both pass the findOne check before either commits.
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "An account with this email already exists. Please sign in instead." });
+    }
+
+    await logEvent({ type: "AUTH", action: "REGISTER", email: req.body?.email, success: false,
+      response: error.message, req });
+    res.status(500).json({ message: "Registration failed. Please try again." });
   }
 };
 
