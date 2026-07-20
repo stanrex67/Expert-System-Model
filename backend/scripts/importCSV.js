@@ -1,3 +1,10 @@
+import dotenv from "dotenv";
+
+const result = dotenv.config();
+
+console.log(result);
+console.log(process.env.MONGODB_URI);
+
 import fs from "fs";
 import csv from "csv-parser";
 import mongoose from "mongoose";

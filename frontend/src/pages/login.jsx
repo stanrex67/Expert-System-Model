@@ -54,14 +54,18 @@ export default function Login() {
 
       localStorage.setItem("token", res.data.token);
 
-      localStorage.setItem(
-        "user",
-        JSON.stringify(res.data.data?.user || res.data.user)
-      );
+      const user = res.data.data?.user || res.data.user;
+
+      localStorage.setItem("user", JSON.stringify(user));
 
       setMessage("success");
 
-      navigate("/");
+      // Redirect based on role
+      if (user?.role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/");
+}
     } catch (err) {
       setMessage(
         err.response?.data?.message ||
