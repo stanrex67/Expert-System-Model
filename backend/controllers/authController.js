@@ -53,6 +53,8 @@ export const register = async (req, res) => {
       const link = `${CLIENT_URL}/verify/${verificationToken}`;
 
       try {
+        console.log("Verification URL:", link);
+        console.log(buildVerificationEmail(name, link));
         await sendEmail({
           to: email,
           subject: "Verify your UNIJOS Library account",

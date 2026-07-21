@@ -258,7 +258,7 @@ const confirmDelete = async () => {
 
   return (
     <Box sx={{
-      display: "flex", width: "100vw", height: "100vh",
+      display: "flex", width: "100%", height: "100vh",
       bgcolor: T.cream, overflow: "hidden",
     }}>
 
