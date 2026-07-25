@@ -17,6 +17,7 @@ connectDB();
 //  ENABLE CORS
 const allowedOrigins = [
   "http://localhost:5173",
+  "https://uj-expert-system-two.vercel.app/",
   process.env.CLIENT_URL, // set this on Railway once your frontend is deployed
 ].filter(Boolean);
 
