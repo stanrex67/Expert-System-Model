@@ -10,7 +10,7 @@ dotenv.config();
 
 // Frontend URL — where React is running
 // In production set CLIENT_URL in your .env to your deployed frontend URL
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+const CLIENT_URL = process.env.CLIENT_URL || "https://uj-expert-system-two.vercel.app";
 
 const buildVerificationEmail = (name, link) => `
   <div style="font-family: Georgia, serif; max-width: 520px; margin: auto; padding: 32px; border: 1px solid #D6CFC0; border-radius: 8px;">
