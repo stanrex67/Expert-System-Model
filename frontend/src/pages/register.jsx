@@ -30,7 +30,7 @@ import AuthLayout, {
   btnSx,
 } from "../components/AuthLayout";
 
-const ROLES = ["student", "visitor", "admin"];
+const ROLES = ["student", "visitor"];
 
 const selectSx = {
   borderRadius: 3,
