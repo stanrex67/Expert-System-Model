@@ -25,6 +25,7 @@ import { useNavigate }   from "react-router-dom";
 import API      from "../api/authApi";
 import BookCard from "../components/BookCard";
 import DatabaseCard from "../components/DatabaseCard";
+import CloseIcon from "@mui/icons-material/Close";  
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const T = {
@@ -125,7 +126,7 @@ function HistoryItem({ item, onSelect, onDelete, collapsed }) {
           !collapsed && (
             <IconButton edge="end" size="small"
               onClick={e => { e.stopPropagation(); onDelete(item.id); }}
-              sx={{ color: "rgba(255,255,255,0.3)", mr: -1,
+              sx={{ color: "rgba(255,255,255,0.6)", mr: -1,     // ← was 0.3
                 "&:hover": { color: "#e74c3c", bgcolor: "rgba(231,76,60,0.1)" } }}>
               <DeleteIcon sx={{ fontSize: 13 }} />
             </IconButton>
@@ -153,10 +154,10 @@ function HistoryItem({ item, onSelect, onDelete, collapsed }) {
               secondary={formatTime(item.updatedAt)}
               slotProps={{
                 primary: {
-                  fontSize: "0.78rem", color: "rgba(248,244,236,0.85)",
+                  fontSize: "0.78rem", color: "rgba(248,244,236,0.92)",   // ← was 0.85
                   sx: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }
                 },
-                secondary: { fontSize: "0.63rem", color: "rgba(255,255,255,0.3)" },
+                secondary: { fontSize: "0.63rem", color: "rgba(255,255,255,0.55)" },  // ← was 0.3
               }}
             />
           )}
@@ -167,11 +168,9 @@ function HistoryItem({ item, onSelect, onDelete, collapsed }) {
 }
 
 // ─── Sidebar content (shared between desktop & mobile drawer) ─────────────────
-function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout, onNewChat }) {
+function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout, onNewChat, onClose }) {
   return (
-    <Box sx={{
-      display: "flex", flexDirection: "column", height: "100%", bgcolor: T.navy,
-    }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: T.navy }}>
       {/* Brand */}
       <Box sx={{
         p: collapsed ? 1.5 : 2,
@@ -179,21 +178,31 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
         flexShrink: 0,
       }}>
         <Box display="flex" alignItems="center" gap={1.2}
-          justifyContent={collapsed ? "center" : "flex-start"}>
-          <MenuBookIcon sx={{ color: T.gold, fontSize: 24, flexShrink: 0 }} />
-          {!collapsed && (
-            <Box minWidth={0}>
-              <Typography variant="subtitle2" fontWeight={700} color={T.cream}
-                sx={{ fontFamily: "'Georgia', serif", lineHeight: 1.1, whiteSpace: "nowrap" }}>
-                UNIJOS Library
-              </Typography>
-              <Typography variant="caption" color={T.gold}
-                sx={{ letterSpacing: 1.4, fontSize: "0.58rem", whiteSpace: "nowrap" }}>
-                AI ASSISTANT
-              </Typography>
-            </Box>
+          justifyContent={collapsed ? "center" : "space-between"}>
+          <Box display="flex" alignItems="center" gap={1.2}>
+            <MenuBookIcon sx={{ color: T.gold, fontSize: 24, flexShrink: 0 }} />
+            {!collapsed && (
+              <Box minWidth={0}>
+                <Typography variant="subtitle2" fontWeight={700} color={T.cream}
+                  sx={{ fontFamily: "'Georgia', serif", lineHeight: 1.1, whiteSpace: "nowrap" }}>
+                  UNIJOS Library
+                </Typography>
+                <Typography variant="caption" color={T.gold}
+                  sx={{ letterSpacing: 1.4, fontSize: "0.58rem", whiteSpace: "nowrap" }}>
+                  AI ASSISTANT
+                </Typography>
+              </Box>
+            )}
+          </Box>
+          {/* Close button — only rendered when onClose is passed (mobile drawer) */}
+          {onClose && !collapsed && (
+            <IconButton size="small" onClick={onClose}
+              sx={{ color: "rgba(255,255,255,0.7)", "&:hover": { color: T.gold } }}>
+              <CloseIcon sx={{ fontSize: 20 }} />
+            </IconButton>
           )}
         </Box>
+        
 
         {/* New chat button */}
         {!collapsed && (
@@ -229,7 +238,7 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
       }}>
         {!collapsed && (
           <Typography variant="overline" sx={{
-            color: "rgba(255,255,255,0.25)", fontSize: "0.58rem",
+            color: "rgba(255,255,255,0.5)", fontSize: "0.58rem",   // ← was 0.25
             letterSpacing: 1.8, px: 1.2, display: "block", mb: 0.5,
           }}>
             Recent
@@ -238,7 +247,7 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
 
         {history.length === 0 && !collapsed && (
           <Typography variant="caption" sx={{
-            color: "rgba(255,255,255,0.25)", px: 1.2, display: "block",
+            color: "rgba(255,255,255,0.45)", px: 1.2, display: "block",   // ← was 0.25
             fontStyle: "italic", fontSize: "0.75rem",
           }}>
             Your conversations will appear here.
@@ -277,7 +286,7 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
                 {user.name}
               </Typography>
               <Typography variant="caption" sx={{
-                fontSize: "0.63rem", color: "rgba(255,255,255,0.3)",
+                fontSize: "0.63rem", color: "rgba(255,255,255,0.55)",   // ← was 0.3
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block",
               }}>
                 {user.email || "Student"}
@@ -285,7 +294,7 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
             </Box>
             <Tooltip title="Sign out">
               <IconButton size="small" onClick={onLogout}
-                sx={{ color: "rgba(255,255,255,0.3)", flexShrink: 0,
+                sx={{ color: "rgba(255,255,255,0.6)", flexShrink: 0,   // ← was 0.3
                   "&:hover": { color: "#e74c3c", bgcolor: "rgba(231,76,60,0.1)" } }}>
                 <LogoutIcon sx={{ fontSize: 16 }} />
               </IconButton>
@@ -655,14 +664,17 @@ const handleDeleteMessage = async (index) => {
     }}>
 
       {/* ══ MOBILE DRAWER ════════════════════════════════════════════════════ */}
-      {isMobile && (
+     {isMobile && (
         <Drawer
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
           ModalProps={{ keepMounted: true }}
           PaperProps={{ sx: { width: 280, bgcolor: T.navy, border: "none" } }}
+          slotProps={{
+            backdrop: { sx: { backgroundColor: "rgba(11,31,58,0.45)" } }  // ← lighter, chat visible through it
+          }}
         >
-          <SidebarContent {...sidebarProps} collapsed={false} />
+          <SidebarContent {...sidebarProps} collapsed={false} onClose={() => setDrawerOpen(false)} />
         </Drawer>
       )}
 
@@ -698,14 +710,14 @@ const handleDeleteMessage = async (index) => {
             zIndex: 40,
             transition: isResizing ? "none" : "left 0.22s cubic-bezier(0.4,0,0.2,1)",
           }}>
-            <Tooltip title={sidebarOpen ? "Collapse" : "Expand"} placement="right">
+           <Tooltip title={sidebarOpen ? "Collapse" : "Expand"} placement="right">
               <IconButton onClick={toggleSidebar} size="small" sx={{
-                bgcolor: T.navy, color: T.gold,
-                width: 18, height: 40,
-                borderRadius: "0 5px 5px 0",
-                boxShadow: "2px 0 10px rgba(0,0,0,0.25)",
-                "&:hover": { bgcolor: T.navyLight },
-                "& svg": { fontSize: 14 },
+                bgcolor: T.gold, color: T.navy,          // ← inverted: gold bg, navy icon — stronger contrast than gold-on-navy
+                width: 22, height: 46,                   // ← slightly larger
+                borderRadius: "0 6px 6px 0",
+                boxShadow: "2px 0 12px rgba(0,0,0,0.35)", // ← stronger shadow
+                "&:hover": { bgcolor: T.goldLight },
+                "& svg": { fontSize: 16 },               // ← was 14
               }}>
                 {sidebarOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
               </IconButton>
