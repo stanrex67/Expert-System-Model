@@ -154,12 +154,12 @@ function HistoryItem({ item, onSelect, onDelete, collapsed }) {
               secondary={formatTime(item.updatedAt)}
               slotProps={{
                 primary: {
-  fontSize: "0.78rem",
-  sx: {
-    color: "rgba(248,244,236,0.9)",
-    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
-  }
-},
+                    fontSize: "0.78rem",
+                    sx: {
+                      color: "rgba(248,244,236,0.9)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                    }
+                  },
                 secondary: { fontSize: "0.63rem", color: "rgba(255,255,255,0.8)" },  // ← was 0.3
               }}
             />
@@ -187,11 +187,11 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
             {!collapsed && (
               <Box minWidth={0}>
                 <Typography variant="subtitle2" fontWeight={700} color={T.cream}
-                  sx={{ fontFamily: "'Georgia', serif", lineHeight: 1.1, whiteSpace: "nowrap" }}>
+                  sx={{color: "rgba(248,244,236,0.9)", fontFamily: "'Georgia', serif", lineHeight: 1.1, whiteSpace: "nowrap" }}>
                   UNIJOS Library
                 </Typography>
                 <Typography variant="caption" color={T.gold}
-                  sx={{ letterSpacing: 1.4, fontSize: "0.58rem", whiteSpace: "nowrap" }}>
+                  sx={{color: "rgba(248,244,236,0.9)", letterSpacing: 1.4, fontSize: "0.58rem", whiteSpace: "nowrap" }}>
                   AI ASSISTANT
                 </Typography>
               </Box>
