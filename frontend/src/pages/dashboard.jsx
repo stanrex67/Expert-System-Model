@@ -275,7 +275,7 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
         justifyContent: collapsed ? "center" : "flex-start",
       }}>
         <Avatar sx={{
-          bgcolor: T.gold, color: T.navy,
+          bgcolor: T.gold,color: "rgba(248,244,236,0.9)",
           width: 30, height: 30, flexShrink: 0,
           fontWeight: 700, fontSize: "0.8rem",
         }}>
