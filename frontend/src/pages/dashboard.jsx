@@ -154,10 +154,13 @@ function HistoryItem({ item, onSelect, onDelete, collapsed }) {
               secondary={formatTime(item.updatedAt)}
               slotProps={{
                 primary: {
-                  fontSize: "0.78rem", color: "rgba(248,244,236,0.92)",   // ← was 0.85
-                  sx: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }
-                },
-                secondary: { fontSize: "0.63rem", color: "rgba(255,255,255,0.55)" },  // ← was 0.3
+  fontSize: "0.78rem",
+  sx: {
+    color: "rgba(248,244,236,0.9)",
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+  }
+},
+                secondary: { fontSize: "0.63rem", color: "rgba(255,255,255,0.8)" },  // ← was 0.3
               }}
             />
           )}
@@ -174,7 +177,7 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
       {/* Brand */}
       <Box sx={{
         p: collapsed ? 1.5 : 2,
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        borderBottom: "1px solid rgba(255,255,255,0.9)",
         flexShrink: 0,
       }}>
         <Box display="flex" alignItems="center" gap={1.2}
@@ -247,7 +250,7 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
 
         {history.length === 0 && !collapsed && (
           <Typography variant="caption" sx={{
-            color: "rgba(248,244,236,0.7)", px: 1.2, display: "block",   // ← was 0.25
+            color: "rgba(248,244,236,0.9)", px: 1.2, display: "block",   // ← was 0.25
             fontStyle: "italic", fontSize: "0.75rem",
           }}>
             Your conversations will appear here.
@@ -266,7 +269,7 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
       {/* User footer */}
       <Box sx={{
         p: collapsed ? 1 : 1.5,
-        borderTop: "1px solid rgba(255,255,255,0.06)",
+        borderTop: "1px solid rgba(255,255,255,0.8)",
         flexShrink: 0,
         display: "flex", alignItems: "center", gap: 1,
         justifyContent: collapsed ? "center" : "flex-start",
