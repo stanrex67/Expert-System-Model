@@ -247,7 +247,7 @@ function SidebarContent({ collapsed, history, onSelect, onDelete, user, onLogout
 
         {history.length === 0 && !collapsed && (
           <Typography variant="caption" sx={{
-            color: "rgba(255,255,255,0.45)", px: 1.2, display: "block",   // ← was 0.25
+            color: "rgba(248,244,236,0.7)", px: 1.2, display: "block",   // ← was 0.25
             fontStyle: "italic", fontSize: "0.75rem",
           }}>
             Your conversations will appear here.
