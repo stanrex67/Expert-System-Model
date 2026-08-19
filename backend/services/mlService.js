@@ -18,7 +18,7 @@ export const getMLIntent = async (query) => {
 // mlService.js
 export const semanticSearch = async (query) => {
   try {
-    const res = await axios.post("http://localhost:5001/semantic-search", { query });
+    const res = await axios.post("https://uj-expert-system-production-7ee9.up.railway.app/semantic-search", { query });
     // only keep genuinely relevant hits
     return (res.data.results || []).filter(r => (r.score ?? 1) >= 0.35);
   } catch (error) {
