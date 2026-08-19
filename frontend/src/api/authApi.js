@@ -1,7 +1,8 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://uj-expert-system-production.up.railway.app/api/",
+  baseURL: "https://gleaming-warmth-production-4722.up.railway.app/",
+  
 });
 
 // ── Attach token to every request ────────────────────────────────────────────
