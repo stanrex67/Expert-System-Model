@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://gleaming-warmth-production-4722.up.railway.app/",
+  baseURL: "https://gleaming-warmth-production-4722.up.railway.app/api/",
   
 });
 
