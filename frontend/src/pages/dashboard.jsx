@@ -830,7 +830,7 @@ const handleDeleteMessage = async (index) => {
                   { label: "Is the library open on Saturday?" },
                   { label: "Find books on medicine" },
                   { label: "What is the borrowing limit?" },
-                  { label: "🏛️ UNIJOS Institutional Repository", link: "https://irespos.unijos.edu.ng" },  // ← NEW
+                  { label: "🏛️ UNIJOS Institutional Repository", link: "https://irepos.unijos.edu.ng" },  // ← NEW
                 ].map(({ label, link }) => (
                   <Chip
                     key={label}
