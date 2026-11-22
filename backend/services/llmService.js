@@ -17,7 +17,7 @@ const groq = process.env.GROQ_API_KEY
   ? new Groq({ apiKey: process.env.GROQ_API_KEY })
   : null;
 
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_MODEL = "openai/gpt-oss-120b";
 
 // ── System context injected into every prompt ────────────────────────────────
 const LIBRARY_CONTEXT = `You are an AI-powered library reference assistant for the University of Jos (UNIJOS) library system in Nigeria.
@@ -75,7 +75,8 @@ const askGroq = async (fullPrompt) => {
       model: GROQ_MODEL,
       messages: [{ role: "user", content: fullPrompt }],
       temperature: 0.5,
-      max_tokens: 400,
+      max_completion_tokens: 1024,
+      reasoning_effort: "low",
     });
 
     return completion.choices?.[0]?.message?.content?.trim() || null;
