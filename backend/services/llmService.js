@@ -85,6 +85,35 @@ const askGroq = async (fullPrompt) => {
   }
 };
 
+const GEMINI_MODELS = (process.env.GEMINI_MODELS || "gemini-flash-latest,gemini-flash-lite-latest")
+  .split(",").map(s => s.trim()).filter(Boolean);
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+const askGemini = async (prompt) => {
+  if (!genAI) return null;
+  for (const name of GEMINI_MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const model = genAI.getGenerativeModel({ model: name });
+        const result = await model.generateContent(prompt);
+        const text = result.response.text()?.trim();
+        if (text) return text;
+      } catch (error) {
+        const msg = error.message || "";
+        console.error(`Gemini (${name}) error:`, msg.slice(0, 160));
+        if (/API_KEY_INVALID/.test(msg)) return null;           // retrying won't help
+        if (/503|429|overloaded|high demand|fetch failed/i.test(msg)) {
+          await sleep(800 * (attempt + 1));                      // brief backoff, then retry
+          continue;
+        }
+        break;                                                   // other error: try next model
+      }
+    }
+  }
+  return null;
+};
+
 /**
  * Makes an uncached LLM request.
  * Gemini is attempted first; Groq is used if Gemini fails or is unavailable.
@@ -151,39 +180,9 @@ Please provide a helpful, accurate response. ${
   }`;
 
   // ── Try Gemini first ──────────────────────────────────────────────────────
-  if (genAI) {
-    try {
-      const model = genAI.getGenerativeModel({
-        model: "gemini-flash-latest",
-      });
-
-      const result = await model.generateContent(fullPrompt);
-      const response = await result.response;
-      const answer = response.text()?.trim();
-
-      if (answer) return answer;
-
-    } catch (error) {
-      console.error("Gemini LLM Error:", error.message);
-
-      // Retry one transient fetch failure.
-      if (retries > 0 && /fetch failed/i.test(error.message || "")) {
-        console.warn("Retrying Gemini request after fetch failure...");
-        return askLLMUncached(userQuery, context, retries - 1);
-      }
-
-      if (error.message?.includes("API_KEY_INVALID")) {
-        console.error("Invalid Gemini API key — check GEMINI_API_KEY.");
-      }
-
-      if (
-        error.message?.includes("RATE_LIMIT") ||
-        error.message?.includes("503")
-      ) {
-        console.warn("Gemini unavailable — falling back to Groq.");
-      }
-    }
-  }
+const geminiAnswer = await askGemini(fullPrompt);
+if (geminiAnswer) return geminiAnswer;
+console.warn("Gemini unavailable — falling back to Groq.");
 
   // ── Gemini unavailable/failed — try Groq ──────────────────────────────────
   const groqAnswer = await askGroq(fullPrompt);
@@ -297,25 +296,9 @@ The search returned ${books.length} matching resources. A sample of them: ${samp
 
 Write a brief 2-3 sentence summary describing the range of material found (subfields, notable authors or editions, anything a student should know before scrolling through). Do not list titles individually — they're already shown to the user separately as cards. Keep it under 60 words.`;
 
-  if (genAI) {
-    try {
-      const model = genAI.getGenerativeModel({
-        model: "gemini-flash-latest",
-      });
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const answer = response.text()?.trim();
-
-      if (answer) return answer;
-
-    } catch (error) {
-      console.error(
-        "Gemini summarizeBookResults error:",
-        error.message
-      );
-    }
-  }
+const g = await askGemini(prompt);
+if (g) return g;
+return askGroq(prompt);
 
   return askGroq(prompt);
 };
