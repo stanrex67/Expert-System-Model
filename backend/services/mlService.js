@@ -2,7 +2,7 @@ import axios from "axios";
 
 
 //  const ML_URL = "http://127.0.0.1:8000" 
-const ML_URL = process.env.ML_SERVICE_URL || "https://expert-system-model-production-ab26ad45.up.railway.app";
+const ML_URL = process.env.ML_SERVICE_URL || "https://expert-system-model-production-1840dee7.up.railway.app/";
 const http = axios.create({ baseURL: ML_URL, timeout: 6000 });
 
 // expert-system-model-production-ab26ad45.up.railway.app
