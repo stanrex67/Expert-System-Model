@@ -65,16 +65,25 @@ const GENERIC_TERMS = new Set([
   "recommend","recommendation","recommendations","suggest","suggestion","suggestions",
   "read","course","courses","give","show","list","get","tell","about",
   "when","what","where","which","who","why","how","can","should",
+  "carry","out","conduct","conducting","undertake","doing","start","starting","begin","carryout",
 ]);
+
+const GREETING_PREFIX = /^\s*(?:hi|hello|hey|good\s+(?:morning|afternoon|evening))\b[\s,!.:;-]*/i;
+const GREETING_ONLY_REST = /^(?:there|everyone|all|assistant|sir|ma'?am|please|can you (?:please )?(?:help|assist)(?: me)?|could you (?:please )?(?:help|assist)(?: me)?)?[\s?!.]*$/i;
+
+
 const BOOK_NOUN = /\b(books?|textbooks?|titles?|readings?|references?)\b/;
 const BOOK_VERB = /\b(find|search|look(?:ing)? for|recommend|suggest|show|list|locate)\b/;
+
 
 
 export const askAI = async (req, res) => {
   const startTime = Date.now();
 
   try {
-    const { query, conversationId } = req.body;
+    const { conversationId } = req.body;
+    const originalQuery = req.body.query;  
+    let query = originalQuery;
 
     // ── 1. Guard ──────────────────────────────────────────────────────────────
     if (!query || !query.trim()) {
@@ -83,7 +92,20 @@ export const askAI = async (req, res) => {
       return res.status(400).json({ message: "Query is required" });
     }
 
-    const q = query.toLowerCase().trim();
+    let q = query.toLowerCase().trim();
+
+    // A greeting at the start is stripped; the rest of the message is answered normally.
+    const greetMatch = q.match(GREETING_PREFIX);
+    let isPureGreeting = false;
+    if (greetMatch) {
+      const rest = query.trim().slice(greetMatch[0].length).trim();
+      if (GREETING_ONLY_REST.test(rest)) {
+        isPureGreeting = true;
+      } else {
+        query = rest;
+        q = rest.toLowerCase();
+      }
+    }
 
     // ── Load user ─────────────────────────────────────────────────────────────
     let user = null;
@@ -105,7 +127,7 @@ export const askAI = async (req, res) => {
         conversation = user.conversations.id(conversationId);
       }
       if (!conversation) {
-        user.conversations.push({ title: query.trim(), messages: [], createdAt: new Date(), updatedAt: new Date() });
+        user.conversations.push({ title: originalQuery.trim(), messages: [], createdAt: new Date(), updatedAt: new Date() });
         conversation = user.conversations[user.conversations.length - 1]; // pushed subdoc, has its own _id
       }
     }
@@ -125,7 +147,7 @@ export const askAI = async (req, res) => {
   if (user && conversation) {
     conversation.messages.push({
       sender: "user",
-      text: query.trim(),
+      text: originalQuery.trim(),
       timestamp: new Date(),
     });
     conversation.messages.push({
@@ -254,7 +276,7 @@ if (isInstitutionLocationQuery) {
 }
 
     // ── 3. Greeting / small-talk ──────────────────────────────────────────────
-    if (/\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(q)) {
+    if (isPureGreeting){
 
       const birthdayMessage = isBirthdayToday(user?.profile?.dateOfBirth)
         ? `\n\n🎂 Happy birthday${userName}! Wishing you a wonderful day.`
