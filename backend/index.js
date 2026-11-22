@@ -22,6 +22,7 @@ connectDB();
 const allowedOrigins = [
   "http://localhost:5173",
   "https://uj-expert-system-two.vercel.app",
+  "https://expert-system-model.vercel.app/",
   process.env.CLIENT_URL, // set this on Railway once your frontend is deployed
 ].filter(Boolean);
 
