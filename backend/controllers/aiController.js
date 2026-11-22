@@ -23,6 +23,12 @@ import { findResourceLocation, formatLocationResponse, getFacultiesForCampus }fr
 import { findFAQResponse }                             from "../utils/faqResolver.js";
 import { askLLM, shouldUseLLM, summarizeBookResults }                        from "../services/llmService.js";
 import { findRelevantDatabases } from "../utils/databaseResolver.js";
+import {
+  escapeRegex, getRecommendations, keywordScore, hydrateFromCatalogue,
+  rerankForUser, dedupeBooks, buildUserContext, isBirthdayToday,
+} from "../services/personalizationService.js";
+
+
 const OPEN_ACCESS_LINKS = [
   { title: "UNIJOS Open Access Resources", url: "https://www.unijos.edu.ng/open-access-resources" },
   { title: "UNIJOS Library E-books",        url: "https://www.unijos.edu.ng/library_ebooks" },
@@ -48,6 +54,22 @@ const buildLocationAnswer = (matches) => {
 };
 
 
+
+// Words that describe the *task*, not the *subject*. If nothing else is left, there is no topic yet.
+const GENERIC_TERMS = new Set([
+  "research","project","assignment","thesis","dissertation","study","studies","topic",
+  "help","need","want","book","books","textbook","textbooks","material","materials",
+  "resource","resources","source","sources","reference","references","reading","readings",
+  "find","search","look","looking","something","anything","academic","paper","papers",
+  "work","write","writing","please","good","best","some","any","could","would","review","reviews",
+  "recommend","recommendation","recommendations","suggest","suggestion","suggestions",
+  "read","course","courses","give","show","list","get","tell","about",
+  "when","what","where","which","who","why","how","can","should",
+]);
+const BOOK_NOUN = /\b(books?|textbooks?|titles?|readings?|references?)\b/;
+const BOOK_VERB = /\b(find|search|look(?:ing)? for|recommend|suggest|show|list|locate)\b/;
+
+
 export const askAI = async (req, res) => {
   const startTime = Date.now();
 
@@ -67,6 +89,14 @@ export const askAI = async (req, res) => {
     let user = null;
     if (req.user?.id) user = await User.findById(req.user.id);
     const userName = user?.name ? `, ${user.name}` : "";
+    const userContext = buildUserContext(user);
+
+
+    const slimBook = (b) => ({
+  _id: b._id, title: b.title, main_author: b.main_author, call_number: b.call_number,
+  year: b.year, edition: b.edition, publisher: b.publisher,
+  subjects: (b.subjects || []).slice(0, 4), navigation: b.navigation, location_note: b.location_note,
+});
 
     // ── Find-or-create conversation ───────────────────────────────────────────
     let conversation = null;
@@ -80,27 +110,39 @@ export const askAI = async (req, res) => {
       }
     }
 
+    const lastAi = conversation ? [...conversation.messages].reverse().find(m => m.sender === "ai") : null;
+    const awaitingTopic = Array.from(lastAi?.intent || []).includes("BOOK_CLARIFY");
+    const history = conversation
+      ? conversation.messages.slice(-6).map(m => ({
+          role: m.sender === "user" ? "user" : "ai",
+          text: String(m.text || "").slice(0, 300),
+        }))
+      : [];
+
     let databases = [];
 
-    // ── Response helper — logs this turn onto the conversation, then replies ──
     const respond = async (payload) => {
-      if (user && conversation) {
-        conversation.messages.push({ sender: "user", text: query, timestamp: new Date() });
-        conversation.messages.push({
-          sender: "ai",
-          text: payload.data?.answer || payload.message || "",
-          intent: payload.intent || [],
-          books: payload.data?.books || [],
-          recommendations: payload.data?.recommendations || [],
-          databases: payload.data?.databases || [], 
-          openAccessLinks: payload.data?.openAccessLinks || [],
-          timestamp: new Date(),
-        });
-        conversation.updatedAt = new Date();
-        await user.save();
-      }
-      return res.json({ ...payload, conversationId: conversation?._id || null });
-    };
+  if (user && conversation) {
+    conversation.messages.push({
+      sender: "user",
+      text: query.trim(),
+      timestamp: new Date(),
+    });
+    conversation.messages.push({
+      sender: "ai",
+      text: payload.data?.answer || payload.message || "",
+      intent: payload.intent || [],
+      books: (payload.data?.books || []).slice(0, 20).map(slimBook),
+      recommendations: (payload.data?.recommendations || []).slice(0, 5).map(slimBook),
+      databases: payload.data?.databases || [],
+      openAccessLinks: payload.data?.openAccessLinks || [],
+      timestamp: new Date(),
+    });
+    conversation.updatedAt = new Date();
+    await user.save();
+  }
+  return res.json({ ...payload, conversationId: conversation?._id });
+};
 
     // ── 2. Campus location lookup ───────────────────────────────────────────────
     const locationMatches  = findResourceLocation(query);
@@ -167,7 +209,7 @@ if (isBrowseCampusQuery) {
 
   const llmAnswer = await askLLM(query, {
     intents: ["GENERAL_HELP"],
-    campusFaculties: faculties, // new context field — see llmService.js addition below
+    campusFaculties: faculties, userContext,
   });
 
   const fallback =
@@ -196,7 +238,7 @@ const isInstitutionLocationQuery =
   !/\b(book|books|library|libraries|shelf|section|call number)\b/.test(q);
 
 if (isInstitutionLocationQuery) {
-  const llmAnswer = await askLLM(query, { intents: ["GENERAL_HELP"] });
+  const llmAnswer = await askLLM(query, { intents: ["GENERAL_HELP"], userContext });
 
   const answer = llmAnswer
     ? `🤔 ${llmAnswer}`
@@ -213,10 +255,20 @@ if (isInstitutionLocationQuery) {
 
     // ── 3. Greeting / small-talk ──────────────────────────────────────────────
     if (/\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(q)) {
-      return respond({ success: true, intent: ["GREETING"], data: {
-        answer: `👋 ${getGreeting()}${userName}! I'm your University of Jos AI virtual library assistant.\n\nHow may I assist you today?`,
-        books: [], recommendations: []
-      }});
+
+      const birthdayMessage = isBirthdayToday(user?.profile?.dateOfBirth)
+        ? `\n\n🎂 Happy birthday${userName}! Wishing you a wonderful day.`
+        : "";
+
+      return respond({
+        success: true,
+        intent: ["GREETING"],
+        data: {
+          answer: `👋 ${getGreeting()}${userName}! I'm your University of Jos AI virtual library assistant.${birthdayMessage}\n\nHow may I assist you today?`,
+          books: [],
+          recommendations: [],
+        },
+      });
     }
 
     if (/\b(what can you do|who are you)\b/.test(q)) {
@@ -239,6 +291,8 @@ if (isInstitutionLocationQuery) {
       (q.includes("find") || q.includes("search") || q.includes("locate")) &&
       (q.includes("book") || q.includes("title") || q.includes("author") || q.includes("subject"));
 
+      if (isBookSearch && !/\bhow (do|can|to|does)\b/.test(q)) { faqAnswer = null; faqTips = []; }
+
     if (faqAnswer && !isBookSearch) {
       let answer = `ℹ️ ${faqAnswer}`;
       if (faqTips.length > 0) answer += "\n\n💡 Tips:\n" + faqTips.map(t => `- ${t}`).join("\n");
@@ -257,7 +311,7 @@ if (isInstitutionLocationQuery) {
       !/\b(find|search|locate|book|books|recommend)\b/.test(q);
 
     if (isDefinitionQuery) {
-        const llmAnswer = await askLLM(query, { intents: ["DEFINITION"] });
+        const llmAnswer = await askLLM(query, { intents: ["DEFINITION"], userContext  });
 
         const answer = llmAnswer
           ? `🤔 ${llmAnswer}\n\n📚 Want me to also find books on this topic? Just ask — e.g. "Find books on ${query.trim()}".`
@@ -272,98 +326,145 @@ if (isInstitutionLocationQuery) {
         }});
       }
 
-    // ── 5. ML intent ──────────────────────────────────────────────────────────
-    let intentString = await getMLIntent(query);
-    let intents = intentString ? intentString.split("+").map(s => s.trim()) : [];
-    if (faqAnswer && !intents.includes("LIBRARY_INFO")) intents.push("LIBRARY_INFO");
+    // ── 5. ML intent ──
+const intentString = await getMLIntent(query);
+let intents = intentString ? intentString.split("+").map(s => s.trim()).filter(Boolean) : [];
+if (faqAnswer && !intents.includes("LIBRARY_INFO")) intents.push("LIBRARY_INFO");
+if (/\b(where (is|are|can)|locate|which shelf|which section|location of)\b/.test(q) &&
+    !intents.includes("LOCATE_BOOK")) intents.push("LOCATE_BOOK");
 
-    // ── 6. Hybrid intent boost ────────────────────────────────────────────────
-    if (/\b(where (is|are|can)|locate|which shelf|which section|location of)\b/.test(q) &&
-        !intents.includes("LOCATE_BOOK")) intents.push("LOCATE_BOOK");
-    if (/\b(find|search|book|books|look for|any books|what books)\b/.test(q) &&
-        !intents.includes("FIND_BOOK")) intents.push("FIND_BOOK");
+// ── 6. Keywords + topic ──
+const keywords = extractKeywords(query.replace(/\bliterature reviews?\b/gi, " ")).filter(w => w.length >= 3);
+const topicKeywords = keywords.filter(w => !GENERIC_TERMS.has(w.toLowerCase()));
+const hasTopic = topicKeywords.length > 0;
+const topicQuery = topicKeywords.join(" ");
 
-    // ── 7. Keywords ───────────────────────────────────────────────────────────
-    // ── 7. Keywords ───────────────────────────────────────────────────────────
-const keywords = extractKeywords(query).filter(w => w.length >= 3); // drop 1–2 letter fragments
+const explicitBookRequest = BOOK_NOUN.test(q) || BOOK_VERB.test(q);
+const wantsPersonalRecs = !!user && !hasTopic &&
+  /\b(recommend|suggest|suggestions?|what should i read)\b/.test(q);
 
-const conds = keywords.map(word => {
-  const rx = `\\b${word}\\b`;
-  return {
-    $or: [
-      { title:       { $regex: rx, $options: "i" } },
-      { subjects:    { $regex: rx, $options: "i" } },
-      { main_author: { $regex: rx, $options: "i" } },
-      { notes:       { $regex: rx, $options: "i" } }
-    ]
-  };
-});
+// ── 6b. Wants books but hasn't said about what → talk, don't search ──
+const isVagueBookRequest =
+  !hasTopic && !faqAnswer && !hasLocationIntent && !wantsPersonalRecs &&
+  (explicitBookRequest ||
+   intents.some(i => ["RESEARCH_HELP", "FIND_BOOK", "RECOMMEND_BOOK"].includes(i)));
 
- const gibberishCount = keywords.filter(looksLikeGibberish).length;
+if (isVagueBookRequest) {
+  const llmAnswer = await askLLM(query, {
+    intents: ["BOOK_CLARIFY"], mode: "clarify_topic", userContext, history,
+  });
+  const answer = llmAnswer ||
+    `Happy to help with your literature review! What topic or course is it on? ` +
+    `Once you tell me, I can search the catalogue for matching titles.`;
+
+  await Log.create({ type: "AI", user: req.user?._id, query,
+    intent: ["BOOK_CLARIFY"], response: answer,
+    success: true, responseTime: Date.now() - startTime });
+
+  return respond({ success: true, intent: ["BOOK_CLARIFY"], data: {
+    answer, books: [], recommendations: [], databases: [], openAccessLinks: [],
+  }});
+}
+
+// ── 6c. Gibberish guard ──
+const gibberishCount = keywords.filter(looksLikeGibberish).length;
 const mostlyGibberish = keywords.length > 0 && gibberishCount / keywords.length >= 0.5;
+if (keywords.length === 0 || mostlyGibberish) {
+  return respond({ success: true, intent: ["GENERAL_HELP"], data: {
+    answer:
+      `🤔 I didn't quite catch that. Try asking me something like:\n\n` +
+      `• "Find books on law"\n• "Where can I find engineering books?"\n• "How do I borrow a book?"`,
+    books: [], recommendations: [],
+  }});
+}
 
-    if (keywords.length === 0 || mostlyGibberish) {
-      return respond({ success: true, intent: ["GENERAL_HELP"], data: {
-        answer:
-          `🤔 I didn't quite catch that. Try asking me something like:\n\n` +
-          `• "Find books on law"\n` +
-          `• "Where can I find engineering books?"\n` +
-          `• "How do I borrow a book?"`,
-        books: [], recommendations: []
-      }});
-    }
+// ── 6d. Decide whether to search the catalogue ──
+const researchAdviceOnly = intents.includes("RESEARCH_HELP") && !explicitBookRequest;
+const wantsSearch =
+  hasTopic && !researchAdviceOnly &&
+  (explicitBookRequest || awaitingTopic ||
+   intents.includes("FIND_BOOK") || intents.includes("RECOMMEND_BOOK"));
 
-    if (keywords.length === 0) intents = ["GENERAL_HELP"];
+intents = intents.filter(i => i !== "FIND_BOOK" && i !== "RECOMMEND_BOOK");
+if (wantsSearch)       intents.push("FIND_BOOK");
+if (wantsPersonalRecs) intents.push("RECOMMEND_BOOK");
+if (intents.length === 0) intents = ["GENERAL_HELP"];
 
+const conds = topicKeywords.map((word) => {
+  const rx = `\\b${escapeRegex(word)}\\b`;
+  return { $or: [
+    { title:       { $regex: rx, $options: "i" } },
+    { subjects:    { $regex: rx, $options: "i" } },
+    { main_author: { $regex: rx, $options: "i" } },
+  ]};
+});
     // ── 8. User history + recommendations ────────────────────────────────────
-    let recommendations = [];
-    if (user) {
-      user.search_history = user.search_history || [];
-      user.search_history.push({ query, timestamp: new Date() });
-      const hq = user.search_history.map(i => i.query);
-      recommendations = await Book.find({ subjects: { $in: hq } }).limit(5);
-      // NOTE: no await user.save() here — respond() saves once at the end,
-      // avoiding the double-save that used to happen in step 9/persist.
-    }
+let recommendations = [];
+if (user) {
+  user.search_history = user.search_history || [];
+  const last = user.search_history[user.search_history.length - 1];
+  if (last?.query !== query) user.search_history.push({ query, timestamp: new Date() });
+  if (user.search_history.length > 50) user.search_history = user.search_history.slice(-50);
+  if (wantsPersonalRecs) recommendations = await getRecommendations(user, 5);
+}
 
     // ── 9. Book search ────────────────────────────────────────────────────────
+    // let books = [];
+
+    // if (intents.includes("FIND_BOOK") || intents.includes("RECOMMEND_BOOK")) {
+    //   try { books = await semanticSearch(query); } catch { books = []; }
+
+    //   if ((!books || books.length === 0) && keywords.length > 0) {
+    //     const conds = keywords.map(word => {
+    //     const rx = `\\b${word}\\b`;
+    //     return {
+    //       $or: [
+    //         { title:       { $regex: rx, $options: "i" } },
+    //         { subjects:    { $regex: rx, $options: "i" } },
+    //         { main_author: { $regex: rx, $options: "i" } },
+    //         { notes:       { $regex: rx, $options: "i" } }
+    //       ]
+    //     };
+    //   });
+    //     books = await Book.find({ $and: conds }).limit(20);
+    //     if (books.length === 0) books = await Book.find({ $or: conds }).limit(20);
+
+    //     const scored = books.map(book => {
+    //       let score = 0;
+    //       keywords.forEach(word => {
+    //         const rx = new RegExp(word, "i");
+    //         if (rx.test(book.title))                   score += 6;
+    //         if (book.subjects?.some(s => rx.test(s))) score += 5;
+    //         if (rx.test(book.main_author))             score += 3;
+    //         if (rx.test(book.notes))                   score += 1;
+    //       });
+    //       return { book, score };
+    //     });
+    //     scored.sort((a, b) => b.score - a.score);
+    //     books = scored.filter(i => i.score >= 3).map(i => i.book).slice(0, 50); 
+    //   }
+    // }
+
     let books = [];
+if (wantsSearch) {
+  let hits = [];
+  try { hits = await semanticSearch(topicQuery); } catch { hits = []; }
 
-    if (intents.includes("FIND_BOOK") || intents.includes("RECOMMEND_BOOK")) {
-      try { books = await semanticSearch(query); } catch { books = []; }
+  if (hits.length) {
+    books = await hydrateFromCatalogue(hits);
+  } else {
+    books = await Book.find({ $and: conds }).limit(30).lean();
+    if (!books.length) books = await Book.find({ $or: conds }).limit(30).lean();
+    books = keywordScore(books, topicKeywords);
+  }
+  books = rerankForUser(dedupeBooks(books), user).slice(0, 50);
+}
 
-      if ((!books || books.length === 0) && keywords.length > 0) {
-        const conds = keywords.map(word => {
-        const rx = `\\b${word}\\b`;
-        return {
-          $or: [
-            { title:       { $regex: rx, $options: "i" } },
-            { subjects:    { $regex: rx, $options: "i" } },
-            { main_author: { $regex: rx, $options: "i" } },
-            { notes:       { $regex: rx, $options: "i" } }
-          ]
-        };
-      });
-        books = await Book.find({ $and: conds }).limit(20);
-        if (books.length === 0) books = await Book.find({ $or: conds }).limit(20);
+const noResultsAfterSearch = wantsSearch && books.length === 0;
+const wantsDatabases = /\b(databases?|journals?|articles?|e-?resources?|e-?books?|online|papers?|scholar)\b/.test(q);
+databases = (wantsSearch && (wantsDatabases || noResultsAfterSearch)) ? findRelevantDatabases(query, 3) : [];
 
-        const scored = books.map(book => {
-          let score = 0;
-          keywords.forEach(word => {
-            const rx = new RegExp(word, "i");
-            if (rx.test(book.title))                   score += 6;
-            if (book.subjects?.some(s => rx.test(s))) score += 5;
-            if (rx.test(book.main_author))             score += 3;
-            if (rx.test(book.notes))                   score += 1;
-          });
-          return { book, score };
-        });
-        scored.sort((a, b) => b.score - a.score);
-        books = scored.filter(i => i.score >= 3).map(i => i.book).slice(0, 50); 
-      }
-    }
-
-    databases = findRelevantDatabases(query, 3);
+const showLocation = !!locationResponse && (hasLocationIntent || intents.includes("LOCATE_BOOK"));
 
     // Annotate with navigation
     if (intents.includes("LOCATE_BOOK") && books.length > 0) {
@@ -376,7 +477,7 @@ const mostlyGibberish = keywords.length > 0 && gibberishCount / keywords.length 
 
     // Pure locate — specific title
     if (intents.includes("LOCATE_BOOK") && !intents.includes("FIND_BOOK")) {
-      const book = await Book.findOne({ title: { $regex: keywords.join("|"), $options: "i" } });
+      const book = await Book.findOne({ title: { $regex: keywords.map(escapeRegex).join("|"), $options: "i" } })
       if (!book) return respond({ success: false, intent: intents,
         message: "❌ Book not found. Try a more specific title." });
       return respond({ success: true, intent: intents, data: {
@@ -416,10 +517,10 @@ const mostlyGibberish = keywords.length > 0 && gibberishCount / keywords.length 
       parts.push(block);
     }
 
-    if (locationResponse) parts.push(locationResponse);
+if (showLocation) parts.push(locationResponse);
 
     if (recommendations.length > 0 && books.length === 0)
-      parts.push("🎯 Based on your search history, you might also like the books below.");
+      parts.push("🎯 Here are some picks based on your department and recent searches.");
 
       if (databases.length > 0) {
       parts.push(
@@ -455,6 +556,7 @@ if (isVeryShortQuery && books.length === 0 && !faqAnswer && !locationResponse) {
   }
 
   await Log.create({ type: "AI", user: req.user?._id, query,
+
     intent: ["GENERAL_HELP"], response: answer,
     success: true, responseTime: Date.now() - startTime });
 
@@ -468,14 +570,21 @@ if (isVeryShortQuery && books.length === 0 && !faqAnswer && !locationResponse) {
 const useLLM = shouldUseLLM({ books, faqAnswer, intents, query }) && !summaryAdded;   
 
     if (useLLM) {
-      const llmAnswer = await askLLM(query, { books, faqAnswer, locationResponse, intents });
+      const llmAnswer = await askLLM(query, {
+        books,
+        faqAnswer,
+        locationResponse: showLocation ? locationResponse : null,
+        intents,
+        userContext,
+        history,
+      });
 
       if (llmAnswer) {
         if (parts.length > 0) {
           parts.push(`\n🤖 AI Assistant:\n${llmAnswer}`);
         } else {
           parts.push(`🤖 ${llmAnswer}`);
-          if (books.length === 0) {
+          if (noResultsAfterSearch) {
             parts.push(
               `\n🌐 Open Access Resources:\n` +
               OPEN_ACCESS_LINKS.map((l, i) => `${i + 1}. ${l.title}\n   ${l.url}`).join("\n")
@@ -503,17 +612,36 @@ const useLLM = shouldUseLLM({ books, faqAnswer, intents, query }) && !summaryAdd
     await Log.create({ type: "AI", user: req.user?._id, query, intent: intents,
       response: answer, success: true, responseTime: Date.now() - startTime });
 
+    //   const slimBook = (b) => ({
+    //   _id: b._id, title: b.title, main_author: b.main_author, call_number: b.call_number,
+    //   year: b.year, edition: b.edition, publisher: b.publisher,
+    //   subjects: (b.subjects || []).slice(0, 4), navigation: b.navigation, location_note: b.location_note,
+    // });
+
+    // return respond({
+    //   success: true, intent: intents,
+    //   data: {
+    //     answer,
+    //     books: (payload.data?.books || []).slice(0, 20).map(slimBook),
+    //     totalBooks:      books.length,
+    //     recommendations: recommendations || [],
+    //     databases:       databases       || [], 
+    //     openAccessLinks: books.length === 0 ? OPEN_ACCESS_LINKS : [],
+    //   }
+    // });
+
     return respond({
-      success: true, intent: intents,
-      data: {
-        answer,
-        books:           books           || [],
-        totalBooks:      books.length,
-        recommendations: recommendations || [],
-        databases:       databases       || [], 
-        openAccessLinks: books.length === 0 ? OPEN_ACCESS_LINKS : [],
-      }
-    });
+  success: true,
+  intent: intents,
+  data: {
+    answer,
+    books,
+    totalBooks: books.length,
+    recommendations: recommendations || [],
+    databases: databases || [],
+    openAccessLinks: noResultsAfterSearch ? OPEN_ACCESS_LINKS : [],
+  },
+});
 
   } catch (error) {
     console.error("AI Error:", error);
@@ -524,1228 +652,3 @@ const useLLM = shouldUseLLM({ books, faqAnswer, intents, query }) && !summaryAdd
   }
 };
 
-// // controllers/aiController.js
-// // Pipeline:
-// //   1. Guard        → reject empty query
-// //   2. Location     → campus/faculty location fast-path
-// //   3. Greeting     → conversational fast-path
-// //   4. FAQ          → policy/rules fast-path
-// //   5. ML intent    → FastAPI classifier
-// //   6. Intent boost → rule-based hybrid boost
-// //   7. Keywords     → extract search terms
-// //   8. Book search  → semantic (FastAPI) → MongoDB fallback → relevance score
-// //   9. Annotate     → call-number navigation on locate queries
-// //  10. Build answer → assemble text from found data
-// //  11. LLM          → Claude fills gaps when results are weak or query is complex
-// //  12. Log + return
-
-// import Book    from "../models/book.js";
-// import User    from "../models/user.js";
-// import Log     from "../models/log.js";
-// import { extractKeywords, looksLikeGibberish }                             from "../utils/keywordExtractor.js";
-// import { explainCallNumber }                           from "../utils/callNumberExplainer.js";
-// import { getMLIntent, semanticSearch }                 from "../services/mlService.js";
-// import { findResourceLocation, formatLocationResponse }from "../utils/resourceResolver.js";
-// import { findFAQResponse }                             from "../utils/faqResolver.js";
-// import { askLLM, shouldUseLLM }                        from "../services/llmService.js";
-
-// const OPEN_ACCESS_LINKS = [
-//   { title: "UNIJOS Open Access Resources", url: "https://www.unijos.edu.ng/open-access-resources" },
-//   { title: "UNIJOS Library E-books",        url: "https://www.unijos.edu.ng/library_ebooks" },
-// ];
-
-// const getGreeting = () => {
-//   const h = new Date().getHours();
-//   if (h < 12) return "Good morning";
-//   if (h < 17) return "Good afternoon";
-//   return "Good evening";
-// };
-
-// const buildLocationAnswer = (matches) => {
-//   const lines = matches.map(({ faculty, location }) => {
-//     if (!location) return `📚 **${faculty}** — location not yet configured. Ask at the circulation desk.`;
-//     const locs = Array.isArray(location) ? location.join(" and ") : location;
-//     return `📚 **${faculty}** books are located at the **${locs}**.`;
-//   });
-//   return (
-//     lines.join("\n") +
-//     `\n\n🧭 Head to the circulation desk there and a librarian can point you to the right shelf.`
-//   );
-// };
-
-
-// export const askAI = async (req, res) => {
-//   const startTime = Date.now();
-
-//   try {
-//     const { query, conversationId } = req.body;
-
-//     // ── 1. Guard ──────────────────────────────────────────────────────────────
-//     if (!query || !query.trim()) {
-//       await Log.create({ type: "AI", user: req.user?._id, query: null,
-//         intent: [], response: "Query is required", success: false });
-//       return res.status(400).json({ message: "Query is required" });
-//     }
-
-//     const q = query.toLowerCase().trim();
-
-//     // ── Load user ─────────────────────────────────────────────────────────────
-//     let user = null;
-//     if (req.user?.id) user = await User.findById(req.user.id);
-//     const userName = user?.name ? `, ${user.name}` : "";
-
-//     let conversation = null;
-//       if (user) {
-//         if (conversationId) {
-//           conversation = user.conversations.id(conversationId);
-//         }
-//         if (!conversation) {
-//           conversation = { title: query.trim(), messages: [], createdAt: new Date(), updatedAt: new Date() };
-//           user.conversations.push(conversation);
-//           conversation = user.conversations[user.conversations.length - 1]; // get the pushed subdoc with its _id
-//         }
-//       }
-
-//     // ── 2. Campus location lookup ─────────────────────────────────────────────
-//    // ── 2. Campus location lookup ─────────────────────────────
-// const locationMatches  = findResourceLocation(query);
-// const locationResponse = formatLocationResponse(locationMatches);
-
-// // "where", "which library", "which campus" = location INTENT,
-// // even if the word "find" is present.
-// const hasLocationIntent =
-//   /\b(where|which (library|campus|building|section)|location of|located)\b/.test(q);
-
-// // Pure location: user ONLY wants the place, not a title list
-// const isPureLocationQuery =
-//   locationMatches && hasLocationIntent &&
-//   !/\b(recommend|suggest|list|show me (some|a few))\b/.test(q);
-
-// if (isPureLocationQuery) {
-//   const answer = buildLocationAnswer(locationMatches); // 👈 friendly sentence, see below
-//   await Log.create({ type: "AI", user: req.user?._id, query,
-//     intent: ["LOCATION_INFO"], response: answer,
-//     success: true, responseTime: Date.now() - startTime });
-//   return res.json({ success: true, intent: ["LOCATION_INFO"],
-//     data: { answer, books: [], recommendations: [] } });
-// }
-
-
-//     // ── 3. Greeting / small-talk ──────────────────────────────────────────────
-//     if (/\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(q)) {
-//       return res.json({ success: true, intent: ["GREETING"], data: {
-//         answer: `👋 ${getGreeting()}${userName}! I'm your University of Jos AI virtual library assistant.\n\nHow may I assist you today?`,
-//         books: [], recommendations: []
-//       }});
-//     }
-
-//     if (/\b(what can you do|who are you)\b/.test(q)) {
-//       return res.json({ success: true, intent: ["SMALL_TALK"], data: {
-//         answer: `😊 I can help you:\n\n• 📚 Find books by subject, title, or author\n• 📍 Locate where books are shelved\n• 🏛️ Tell you which campus library holds your faculty's books\n• ℹ️ Answer questions about library rules, hours, and services\n• 🤖 Answer complex research questions using AI\n\nTry: "Find books on engineering" or "Where are law books?"`,
-//         books: [], recommendations: []
-//       }});
-//     }
-
-//     // ── 4. FAQ lookup ─────────────────────────────────────────────────────────
-//     const faqResult = findFAQResponse(query);
-//     let faqAnswer = null;
-//     let faqTips   = [];
-//     if (faqResult) {
-//       faqAnswer = typeof faqResult === "string" ? faqResult : faqResult.answer;
-//       faqTips   = typeof faqResult === "string" ? [] : (faqResult.tips || []);
-//     }
-
-//     const isBookSearch =
-//       (q.includes("find") || q.includes("search") || q.includes("locate")) &&
-//       (q.includes("book") || q.includes("title") || q.includes("author") || q.includes("subject"));
-
-//     if (faqAnswer && !isBookSearch) {
-//       let answer = `ℹ️ ${faqAnswer}`;
-//       if (faqTips.length > 0) answer += "\n\n💡 Tips:\n" + faqTips.map(t => `- ${t}`).join("\n");
-//       if (locationResponse) answer += `\n\n${locationResponse}`;
-//       await Log.create({ type: "AI", user: req.user?._id, query,
-//         intent: ["LIBRARY_INFO"], response: answer,
-//         success: true, responseTime: Date.now() - startTime });
-//       return res.json({ success: true, intent: ["LIBRARY_INFO"],
-//         data: { answer, books: [], recommendations: [] } });
-//     }
-
-//     // ── 5. ML intent ──────────────────────────────────────────────────────────
-//     let intentString = await getMLIntent(query);
-//     let intents = intentString ? intentString.split("+").map(s => s.trim()) : [];
-//     if (faqAnswer && !intents.includes("LIBRARY_INFO")) intents.push("LIBRARY_INFO");
-
-//     // ── 6. Hybrid intent boost ────────────────────────────────────────────────
-//     if (/\b(where (is|are|can)|locate|which shelf|which section|location of)\b/.test(q) &&
-//         !intents.includes("LOCATE_BOOK")) intents.push("LOCATE_BOOK");
-//     if (/\b(find|search|book|books|look for|any books|what books)\b/.test(q) &&
-//         !intents.includes("FIND_BOOK")) intents.push("FIND_BOOK");
-
-//     // ── 7. Keywords ───────────────────────────────────────────────────────────
-//     const keywords = extractKeywords(query);
-
-
-
-//     const allGibberish =
-//       keywords.length > 0 && keywords.every(looksLikeGibberish);
-
-//     if (keywords.length === 0 || allGibberish) {
-//       return res.json({ success: true, intent: ["GENERAL_HELP"], data: {
-//         answer:
-//           `🤔 I didn't quite catch that. Try asking me something like:\n\n` +
-//           `• "Find books on 'law'"\n` +
-//           `• "Where can I find "engineering" books?"\n` +
-//           `• "How do I borrow a book?"`,
-//         books: [], recommendations: []
-//       }});
-//     }
-
-//     if (keywords.length === 0) intents = ["GENERAL_HELP"];
-
-//     // ── 8. User history + recommendations ────────────────────────────────────
-//     let recommendations = [];
-//     if (user) {
-//       user.search_history = user.search_history || [];
-//       user.search_history.push({ query, timestamp: new Date() });
-//       await user.save();
-//       const hq = user.search_history.map(i => i.query);
-//       recommendations = await Book.find({ subjects: { $in: hq } }).limit(5);
-//     }
-
-//     // ── 9. Book search ────────────────────────────────────────────────────────
-//     let books = [];
-
-//     if (intents.includes("FIND_BOOK") || intents.includes("RECOMMEND_BOOK")) {
-//       try { books = await semanticSearch(query); } catch { books = []; }
-
-//       if ((!books || books.length === 0) && keywords.length > 0) {
-//         const conds = keywords.map(word => ({
-//           $or: [
-//             { title:       { $regex: word, $options: "i" } },
-//             { subjects:    { $regex: word, $options: "i" } },
-//             { main_author: { $regex: word, $options: "i" } },
-//             { notes:       { $regex: word, $options: "i" } }
-//           ]
-//         }));
-//         books = await Book.find({ $and: conds }).limit(20);
-//         if (books.length === 0) books = await Book.find({ $or: conds }).limit(20);
-
-//         const scored = books.map(book => {
-//           let score = 0;
-//           keywords.forEach(word => {
-//             const rx = new RegExp(word, "i");
-//             if (rx.test(book.title))                   score += 6;
-//             if (book.subjects?.some(s => rx.test(s))) score += 5;
-//             if (rx.test(book.main_author))             score += 3;
-//             if (rx.test(book.notes))                   score += 1;
-//           });
-//           return { book, score };
-//         });
-//         scored.sort((a, b) => b.score - a.score);
-//         books = scored.filter(i => i.score > 0).map(i => i.book).slice(0, 5);
-//       }
-//     }
-
-//     // Annotate with navigation
-//     if (intents.includes("LOCATE_BOOK") && books.length > 0) {
-//       books = books.map(book => {
-//         const b = book.toObject ? book.toObject() : { ...book };
-//         return { ...b, navigation: explainCallNumber(b.call_number),
-//           location_note: `📍 Call Number: ${b.call_number}` };
-//       });
-//     }
-
-//     // Pure locate — specific title
-//     if (intents.includes("LOCATE_BOOK") && !intents.includes("FIND_BOOK")) {
-//       const book = await Book.findOne({ title: { $regex: keywords.join("|"), $options: "i" } });
-//       if (!book) return res.json({ success: false, intent: intents,
-//         message: "❌ Book not found. Try a more specific title." });
-//       return res.json({ success: true, intent: intents, data: {
-//         answer: `📍 Here is where to find "${book.title}":`,
-//         ...book.toObject(),
-//         navigation: explainCallNumber(book.call_number),
-//         location_note: `📍 Call Number: ${b.call_number ?? "Not yet catalogued"}`,
-//         books: [], recommendations: []
-//       }});
-//     }
-
-//     // Persist user state
-//     if (user) {
-//       user.lastQuery = query;
-//       user.lastBooks = books.map(b => b.title);
-//       await user.save();
-//     }
-
-//     // ── 10. Build base answer ─────────────────────────────────────────────────
-//     const parts = [];
-
-//     if (books.length > 0)
-//       parts.push(`📚 Found ${books.length} relevant resource${books.length > 1 ? "s" : ""} for your query.`);
-
-//     if (intents.includes("LIBRARY_INFO") && faqAnswer) {
-//       let block = `ℹ️ ${faqAnswer}`;
-//       if (faqTips.length) block += "\n\n💡 Tips:\n" + faqTips.map(t => `- ${t}`).join("\n");
-//       parts.push(block);
-//     }
-
-//     if (locationResponse) parts.push(locationResponse);
-
-//     if (recommendations.length > 0 && books.length === 0)
-//       parts.push("🎯 Based on your search history, you might also like the books below.");
-
-//     // ── 11. LLM enrichment ───────────────────────────────────────────────────
-//     const useLLM = shouldUseLLM({ books, faqAnswer, intents, query });
-
-//     if (useLLM) {
-//       const llmAnswer = await askLLM(query, { books, faqAnswer, locationResponse, intents });
-
-//       if (llmAnswer) {
-//         if (parts.length > 0) {
-//           // Catalogue results exist — LLM adds context
-//           parts.push(`\n🤖 AI Assistant:\n${llmAnswer}`);
-//         } else {
-//           // LLM is the only answer
-//           parts.push(`🤖 ${llmAnswer}`);
-//           if (books.length === 0) {
-//             parts.push(
-//               `\n🌐 Open Access Resources:\n` +
-//               OPEN_ACCESS_LINKS.map((l, i) => `${i + 1}. ${l.title}\n   ${l.url}`).join("\n")
-//             );
-//           }
-//         }
-//       } else if (parts.length === 0) {
-//         // LLM failed + no other data — static open-access fallback
-//         parts.push(
-//           `❌ I could not find relevant resources in the physical library collection.\n\n` +
-//           `🌐 You may try these Open Access Resources:\n` +
-//           OPEN_ACCESS_LINKS.map((l, i) => `${i + 1}. ${l.title}\n   ${l.url}`).join("\n") +
-//           `\n\n💡 You can also try:\n• Searching with a broader keyword\n• Using a different subject term\n• Searching by author name`
-//         );
-//       }
-//     } else if (parts.length === 0) {
-//       parts.push(
-//         `❌ No relevant resources found. Try:\n\n` +
-//         `• "Find books on engineering"\n• "Where are law books?"\n• "How do I borrow a book?"`
-//       );
-//     }
-
-//     const answer = parts.join("\n\n");
-
-//     // ── 12. Log + respond ─────────────────────────────────────────────────────
-//     await Log.create({ type: "AI", user: req.user?._id, query, intent: intents,
-//       response: answer, success: true, responseTime: Date.now() - startTime });
-
-//     return res.json({
-//       success: true, intent: intents,
-//       data: {
-//         answer,
-//         books:           books           || [],
-//         recommendations: recommendations || [],
-//         openAccessLinks: books.length === 0 ? OPEN_ACCESS_LINKS : [],
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error("AI Error:", error);
-//     await Log.create({ type: "AI", user: req.user?._id, query: req.body?.query,
-//       intent: [], response: error.message, success: false,
-//       responseTime: Date.now() - startTime });
-//     return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
-//   }
-// };
-
-// import Book from "../models/book.js";
-// import { extractKeywords } from "../utils/keywordExtractor.js";
-// import { explainCallNumber } from "../utils/callNumberExplainer.js";
-// import { getMLIntent, semanticSearch } from "../services/mlService.js";
-// import { findResourceLocation, formatLocationResponse } from "../utils/resourceResolver.js";
-// import User from "../models/user.js";
-// import { findFAQResponse } from "../utils/faqResolver.js";
-// import Log from "../models/log.js";
-// import { handleConversation } from "../utils/conversation.js";
-
-
-// const OPEN_ACCESS_LINKS = [
-//   {
-//     title: "UNIJOS Open Access Resources",
-//     url: "https://www.unijos.edu.ng/open-access-resources",
-//   },
-//   {
-//     title: "UNIJOS Library E-books",
-//     url: "https://www.unijos.edu.ng/library_ebooks",
-//   },
-// ];
-
-// export const askAI = async (req, res) => {
-//   const startTime = Date.now();
-
-//   try {
-//     const { query } = req.body;
-//     const q = query.toLowerCase();
-
-//      // STEP 1: Detect resource location (DO NOT RETURN EARLY)
-//     const locationMatches = findResourceLocation(query);
-//     const locationResponse = formatLocationResponse(locationMatches);
-
-//     if (
-//   locationResponse &&
-//   (
-//     q.includes("library") ||
-//     q.includes("location") ||
-//     q.includes("where") ||
-//     q.includes("uj") ||
-//     q.includes("campus")
-//   )
-// ) {
-//   return res.json({
-//     success: true,
-//     intent: ["LOCATION_INFO"],
-//     message: "Library locations",
-//     data: {
-//       answer: locationResponse,
-//       books: [],
-//       recommendations: []
-//     }
-//   });
-// }
-
-//         // STEP 2: ML INTENT
-//     let intentString = await getMLIntent(query);
-//     let intents = intentString ? intentString.split("+") : [];
-
-//     let sections = [];
-
-//    if (!query) {
-//   await Log.create({
-//     type: "AI",
-//     user: req.user?._id,
-//     query: null,
-//     intent: [],
-//     response: "Query is required",
-//     success: false
-//   });
-
-//   return res.status(400).json({ message: "Query is required" });
-// }
-
-//    let user = null;
-// let recommendations = [];
-//    const faqResult = findFAQResponse(query);
-//    let faqAnswer = null;
-//     let faqTips = [];
-
-//     if (faqResult) {
-//       if (typeof faqResult === "string") {
-//         faqAnswer = faqResult; // from libraryFAQ.json
-//       } else {
-//         faqAnswer = faqResult.answer; // from expertKnowledge.json
-//         faqTips = faqResult.tips || [];
-//       }
-//     }
-
-// if (req.user?.id) {
-//   user = await User.findById(req.user.id);
-
-  
-
-//         // FAQ / LIBRARY INFO CHECK
-//         // 🔹 FAQ
- 
-
-//     if (faqAnswer && !/(book|find|locate|where)/.test(q)) {
-
-//        let answer = `ℹ️ ${faqAnswer}`;
-
-//       if (faqTips.length) {
-//         answer += "\n\n💡 Tips:\n" + faqTips.map(t => `- ${t}`).join("\n");
-//       }
-
-//       await Log.create({
-//       type: "AI",
-//       user: req.user?._id,
-//       query,
-//       intent: ["LIBRARY_INFO"],
-//       response: answer,
-//       success: true,
-//       responseTime: Date.now() - startTime
-//     });
-//       return res.json({
-//         success: true,
-//         intent: ["LIBRARY_INFO"],
-//         message: "Library information response",
-//        data: { answer, books: [], recommendations: [] }
-//       });
-//     }
-
-
-
-
-//     if (faqAnswer && !intents.includes("LIBRARY_INFO")) {
-//       intents.push("LIBRARY_INFO");
-//     }
-
-    
-
-//     // 🧠 ================= CONVERSATION LAYER =================
-//     const hour = new Date().getHours();
-//     let greeting = "Hello";
-//     if (hour < 12) greeting = "Good morning";
-//     else if (hour < 17) greeting = "Good afternoon";
-//     else greeting = "Good evening";
-
-//     if (/(hi|hello|hey|good morning|good afternoon|good evening|who are you)/.test(q)) {
-//       return res.json({
-//         success: true,
-//         intent: ["GREETING"],
-//         data: {
-//           answer: `👋 ${greeting }, ${user.name}! I'm your University of Jos AI virtual library assistant.\n\nHow may I assist you today?`,
-//           books: [],
-//           recommendations: []
-//         }
-//       });
-//     }
-
-//     if (/(what can you do|help me)/.test(q)) {
-//       return res.json({
-//         success: true,
-//         intent: ["SMALL_TALK"],
-//         data: {
-//           answer: `😊 I can help you:\n\n• Find books\n• Recommend resources\n• Show where books are located in the University of jos library\n\nTry: "Find books on programming"`,
-//           books: [],
-//           recommendations: []
-//         }
-//       });
-//     }
-
-//     if (user) {
-//         user.search_history.push({
-//           query,
-//           timestamp: new Date()
-//         });
-//         await user.save();
-
-//         const historyQueries = user.search_history.map(item => item.query);
-
-//         recommendations = await Book.find({
-//           subjects: { $in: historyQueries }
-//         }).limit(5);
-//       }
-    
-
-
-//     // 🔥 STEP 3: HYBRID INTENT BOOST
-//     if (
-//       (q.includes("where") || q.includes("locate") || q.includes("find where")) &&
-//       !intents.includes("LOCATE_BOOK")
-//     ) {
-//       intents.push("LOCATE_BOOK");
-//     }
-
-//     if (
-//       (q.includes("find") || q.includes("book") || q.includes("books")) &&
-//       !intents.includes("FIND_BOOK")
-//     ) {
-//       intents.push("FIND_BOOK");
-//     }
-
-//     // 🔍 STEP 4: KEYWORDS
-//     const keywords = extractKeywords(query);
-
-//     // 🔥 BLOCK BAD QUERIES
-//     if (keywords.length === 0) {
-//       return res.json({
-//         success: false,
-//         message:
-//           "🤔 Your query is too vague. Try something like:\n\n• Find engineering books\n• Books on microbiology",
-//       });
-//     }
-
-//     let books = [];
-
-//     //  ================= FIND BOOK =================
-//     if (intents.includes("FIND_BOOK")) {
-
-//       //  1. SEMANTIC SEARCH
-//       try {
-//         books = await semanticSearch(query);
-//       } catch (err) {
-//         console.log("⚠️ Semantic search failed, falling back...");
-//         books = [];
-//       }
-
-//       // 🔁 2. FALLBACK TO MONGODB SEARCH
-//       if (!books || books.length === 0) {
-//         const searchConditions = keywords.map(word => ({
-//           $or: [
-//             { title: { $regex: word, $options: "i" } },
-//             { subjects: { $regex: word, $options: "i" } },
-//             { main_author: { $regex: word, $options: "i" } },
-//             { notes: { $regex: word, $options: "i" } }
-//           ]
-//         }));
-
-//         // 🔹 strict match
-//         books = await Book.find({ $and: searchConditions }).limit(20);
-
-//         // 🔹 fallback loose match
-//         if (books.length === 0) {
-//           books = await Book.find({ $or: searchConditions }).limit(20);
-//         }
-
-//         // 🔥 relevance scoring
-//         const scoredBooks = books.map(book => {
-//           let score = 0;
-
-//           keywords.forEach(word => {
-//             const regex = new RegExp(word, "i");
-
-//             if (regex.test(book.title)) score += 6;
-//             if (book.subjects?.some(s => regex.test(s))) score += 5;
-//             if (regex.test(book.main_author)) score += 3;
-//             if (regex.test(book.notes)) score += 1;
-//           });
-
-//           return { book, score };
-//         });
-
-//         scoredBooks.sort((a, b) => b.score - a.score);
-
-//         books = scoredBooks
-//           .filter(item => item.score > 0)
-//           .map(item => item.book)
-//           .slice(0, 5);
-//       }
-//     }
-
-//     // 📍 ================= LOCATE (WITH FIND) =================
-//     if (intents.includes("LOCATE_BOOK") && books.length > 0) {
-//       books = books.map(book => {
-//         const bookObj = book.toObject ? book.toObject() : book;
-
-//         return {
-//           ...bookObj,
-//           navigation: explainCallNumber(bookObj.call_number),
-//           location_note: `📍 Call Number: ${bookObj.call_number}`
-//         };
-//       });
-//     }
-
-//     // 📍 ================= PURE LOCATE =================
-//     if (
-//       intents.includes("LOCATE_BOOK") &&
-//       !intents.includes("FIND_BOOK")
-//     ) {
-//       const book = await Book.findOne({
-//         title: { $regex: keywords.join(" "), $options: "i" }
-//       });
-
-//       if (!book) {
-//         return res.json({
-//           success: false,
-//           intent: intents,
-//           message: "❌ Book not found. Try a more specific title."
-//         });
-//       }
-
-//       return res.json({
-//         success: true,
-//         intent: intents,
-//         message: `📍 Location guide for "${book.title}"`,
-//         data: {
-//           ...book.toObject(),
-//           navigation: explainCallNumber(book.call_number),
-//           location_note: `📍 Call Number: ${book.call_number}`
-//         }
-//       });
-//     }
-
-//     if (user) {
-//       user.lastQuery = query;
-//       user.lastBooks = books.map(b => b.title);
-//       user.search_history.push({ query, timestamp: new Date() });
-//       await user.save();
-//     }
-
-//     // 🔹 FOLLOW-UP FIX
-//     if (q.includes("where is it") && user?.lastBooks?.length) {
-//       const book = await Book.findOne({
-//         title: { $regex: user.lastBooks[0], $options: "i" },
-//       });
-
-//       if (book) {
-//         return res.json({
-//           success: true,
-//           intent: ["LOCATE_BOOK"],
-//           data: {
-//             answer: `📍 Here is where to find "${book.title}":`,
-//             navigation: explainCallNumber(book.call_number),
-//           },
-//         });
-//       }
-//     }
-
-//     // 📚 ================= RECOMMEND =================
-//     if (intents.includes("RECOMMEND_BOOK")) {
-//       const recommended = await Book.find().limit(5);
-
-//       return res.json({
-//         success: true,
-//         intent: intents,
-//         message: "📚 Here are some recommended books",
-//         data: {
-//                   answer: "📚 Here are some recommended books",
-//                   books: recommended,
-//                   recommendations: recommended
-//                 }
-//      });
-//     }
-
-//     // 🔥 ================= FINAL HYBRID RESPONSE =================
-  
-
-// let answer = "";
-
-// //  Books summary
-// if (books && books.length > 0) {
-//   answer = `📚 Found ${books.length} relevant resources for your query.`;
-// }
-
-// //  Location info
-// if (locationResponse) {
-//   sections.push(locationResponse);
-// }
-
-// //  FAQ
-// if (intents.includes("LIBRARY_INFO") && faqAnswer) {
-//   sections.push(`ℹ️ ${faqAnswer}`);
-// }
-
-// //  Recommendations
-// if (recommendations.length > 0) {
-//   sections.push("🎯 Recommended books available below.");
-// }
-
-// // ❌ fallback
-// if (!answer) {
-
-//   answer =
-// `❌ I could not find relevant resources in the physical library collection.
-
-// 🌐 You may try these Open Access Resources:
-
-// 1. UNIJOS Open Access Resources
-// https://www.unijos.edu.ng/open-access-resources
-
-// 2. UNIJOS Library E-books
-// https://www.unijos.edu.ng/library_ebooks
-
-// 💡 You can also try:
-// • searching with a broader keyword
-// • using a different subject term
-// • searching by author name`;
-// }
-
-//     const responseTime = Date.now() - startTime;
-
-//     await Log.create({
-//       type: "AI",
-//       user: req.user?._id,
-//       query,
-//       intent: intents,
-//       response: answer,
-//       success: true,
-//       responseTime
-//     });
-
-//       return res.json({
-//       success: true,
-//       intent: intents,
-//       data: {
-//         answer: answer || "",
-//         books: books || [],
-//         recommendations: recommendations || [],
-//          openAccessLinks: books.length === 0 ? OPEN_ACCESS_LINKS : [],
-//       }
-//     });
-
-//   }}catch (error) {
-//   console.error("AI Error:", error);
-
-//   await Log.create({
-//     type: "AI",
-//     user: req.user?._id,
-//     query: req.body?.query,
-//     intent: [],
-//     response: error.message,
-//     success: false,
-//     responseTime: Date.now() - startTime
-//   });
-
-//   return res.status(500).json({
-//     success: false,
-//     message: "Internal server error",
-//     error: error.message
-//   });
-// }
-// };
-
-// // import Book from "../models/book.js";
-// // import { extractKeywords } from "../utils/keywordExtractor.js";
-// // import { explainCallNumber } from "../utils/callNumberExplainer.js";
-// // import { getMLIntent, semanticSearch } from "../services/mlService.js";
-// // import { findResourceLocation, formatLocationResponse } from "../utils/resourceResolver.js";
-
-// // export const askAI = async (req, res) => {
-// //   try {
-// //     const { query } = req.body;
-
-
-// //     if (!query) {
-// //       return res.status(400).json({ message: "Query is required" });
-// //     }
-
-// //     // Detect resource location (DO NOT RETURN EARLY)
-// //     const locationMatches = findResourceLocation(query);
-// //     const locationResponse = formatLocationResponse(locationMatches);
-
-// //     // STEP 1: ML INTENT
-// //     let intentString = await getMLIntent(query);
-// //     let intents = intentString ? intentString.split("+") : [];
-
-// //     const q = query.toLowerCase();
-
-// //     //  STEP 2: HYBRID INTENT BOOST (VERY IMPORTANT)
-// //     if (
-// //       (q.includes("where") || q.includes("locate") || q.includes("find where")) &&
-// //       !intents.includes("LOCATE_BOOK")
-// //     ) {
-// //       intents.push("LOCATE_BOOK");
-// //     }
-
-// //     if (
-// //       (q.includes("find") || q.includes("book") || q.includes("books")) &&
-// //       !intents.includes("FIND_BOOK")
-// //     ) {
-// //       intents.push("FIND_BOOK");
-// //     }
-
-// //     // 🔍 STEP 3: KEYWORDS
-// //     const keywords = extractKeywords(query);
-
-// //     let books = [];
-
-// //     // 🔥 ================= FIND BOOK (SEMANTIC FIRST) =================
-// //     if (intents.includes("FIND_BOOK")) {
-
-// //       // 🧠 1. SEMANTIC SEARCH (PRIMARY)
-// //       try {
-// //         books = await semanticSearch(query);
-// //       } catch (err) {
-// //         console.log("⚠️ Semantic search failed, falling back...");
-// //         books = [];
-// //       }
-
-// //       // 🔁 2. FALLBACK TO MONGODB SEARCH
-// //       if (!books || books.length === 0) {
-// //         const searchConditions = keywords.map(word => ({
-// //           $or: [
-// //             { title: { $regex: word, $options: "i" } },
-// //             { subjects: { $regex: word, $options: "i" } },
-// //             { main_author: { $regex: word, $options: "i" } },
-// //             { notes: { $regex: word, $options: "i" } }
-// //           ]
-// //         }));
-
-// //         // 🔹 Try strict match
-// //         books = await Book.find({ $and: searchConditions }).limit(20);
-
-// //         // 🔹 fallback to loose match
-// //         if (books.length === 0) {
-// //           books = await Book.find({ $or: searchConditions }).limit(20);
-// //         }
-
-// //         // 🔥 RELEVANCE SCORING
-// //         const scoredBooks = books.map(book => {
-// //           let score = 0;
-
-// //           keywords.forEach(word => {
-// //             const regex = new RegExp(word, "i");
-
-// //             if (regex.test(book.title)) score += 6;
-// //             if (book.subjects?.some(s => regex.test(s))) score += 5;
-// //             if (regex.test(book.main_author)) score += 3;
-// //             if (regex.test(book.notes)) score += 1;
-// //           });
-
-// //           return { book, score };
-// //         });
-
-// //         scoredBooks.sort((a, b) => b.score - a.score);
-
-// //         books = scoredBooks
-// //           .filter(item => item.score > 0)
-// //           .map(item => item.book)
-// //           .slice(0, 5);
-// //       }
-// //     }
-
-// //     // 📍 ================= LOCATE (WITH FIND) =================
-// //     if (intents.includes("LOCATE_BOOK") && books.length > 0) {
-// //       books = books.map(book => {
-// //         const bookObj = book.toObject ? book.toObject() : book;
-
-// //         return {
-// //           ...bookObj,
-// //           navigation: explainCallNumber(bookObj.call_number),
-// //           location_note: `📍 Call Number: ${bookObj.call_number}`
-// //         };
-// //       });
-// //     }
-
-// //     // 📍 ================= PURE LOCATE =================
-// //     if (
-// //       intents.includes("LOCATE_BOOK") &&
-// //       !intents.includes("FIND_BOOK")
-// //     ) {
-// //       const book = await Book.findOne({
-// //         title: { $regex: keywords.join(" "), $options: "i" }
-// //       });
-
-// //       if (!book) {
-// //         return res.json({
-// //           intent: intents,
-// //           message: "❌ Book not found. Try a more specific title."
-// //         });
-// //       }
-
-// //       return res.json({
-// //         intent: intents,
-// //         message: `📍 Location guide for "${book.title}"`,
-// //         data: {
-// //           ...book.toObject(),
-// //           navigation: explainCallNumber(book.call_number),
-// //           location_note: `📍 Call Number: ${book.call_number}`
-// //         }
-// //       });
-// //     }
-
-// //     // 📚 ================= RECOMMEND =================
-// //     if (intents.includes("RECOMMEND_BOOK")) {
-// //       const recommended = await Book.find().limit(5);
-
-// //       return res.json({
-// //         intent: intents,
-// //         message: "📚 Here are some recommended books",
-// //         data: recommended
-// //       });
-// //     }
-
-// //     // 🔥 ================= FINAL RESPONSE =================
-// //     if (books.length > 0) {
-// //       return res.json({
-// //         intent: intents,
-// //         message: intents.includes("LOCATE_BOOK")
-// //           ? "📍 Here are books and where to find them"
-// //           : `📚 Here are books related to "${query}"`,
-// //         data: books
-// //       });
-// //     }
-
-// //     // 💬 ================= FALLBACK =================
-// //     return res.json({
-// //       intent: intents,
-// //       message:
-// //         "🤖 I couldn't find relevant results. Try keywords like 'law', 'medicine', or 'engineering'."
-// //     });
-
-// //   } catch (error) {
-// //     console.error("AI Controller Error:", error);
-// //     res.status(500).json({ error: error.message });
-// //   }
-// // };
-
-
-
-
-// // import Book from "../models/book.js";
-// // import { extractKeywords } from "../utils/keywordExtractor.js";
-// // import { explainCallNumber } from "../utils/callNumberExplainer.js";
-// // import { getMLIntent } from "../services/mlService.js";
-// // import { semanticSearch } from "../services/mlService.js";
-
-// // export const askAI = async (req, res) => {
-// //   try {
-// //     const { query } = req.body;
-
-// //     if (!query) {
-// //       return res.status(400).json({ message: "Query is required" });
-// //     }
-
-// //     // 🔥 STEP 1: ML INTENT
-// //     let intentString = await getMLIntent(query);
-// //     let intents = intentString ? intentString.split("+") : [];
-
-// //     const q = query.toLowerCase();
-
-// //     // 🔥 STEP 2: HYBRID INTENT BOOST (CRITICAL FIX)
-// //     if (
-// //       (q.includes("where") || q.includes("locate") || q.includes("shelf")) &&
-// //       !intents.includes("LOCATE_BOOK")
-// //     ) {
-// //       intents.push("LOCATE_BOOK");
-// //     }
-
-// //     if (
-// //       (q.includes("find") || q.includes("book") || q.includes("books")) &&
-// //       !intents.includes("FIND_BOOK")
-// //     ) {
-// //       intents.push("FIND_BOOK");
-// //     }
-
-// //     // 🔍 STEP 3: KEYWORDS
-// //     const keywords = extractKeywords(query);
-
-// //     let books = [];
-
-// //     // 🔍 ================= FIND BOOK =================
-// //     if (intents.includes("FIND_BOOK")) {
-// //       const searchConditions = keywords.map(word => ({
-// //         $or: [
-// //           { title: { $regex: word, $options: "i" } },
-// //           { subjects: { $regex: word, $options: "i" } },
-// //           { main_author: { $regex: word, $options: "i" } },
-// //           { notes: { $regex: word, $options: "i" } }
-// //         ]
-// //       }));
-
-// //       // 🔹 STRICT MATCH
-// //       books = await Book.find({ $and: searchConditions }).limit(20);
-
-// //       // 🔹 FALLBACK
-// //       if (books.length === 0) {
-// //         books = await Book.find({ $or: searchConditions }).limit(20);
-// //       }
-
-// //       // 🔥 SCORING
-// //       const scoredBooks = books.map(book => {
-// //         let score = 0;
-
-// //         keywords.forEach(word => {
-// //           const regex = new RegExp(word, "i");
-
-// //           if (regex.test(book.title)) score += 6;
-// //           if (book.subjects?.some(s => regex.test(s))) score += 5;
-// //           if (regex.test(book.main_author)) score += 3;
-// //           if (regex.test(book.notes)) score += 1;
-// //         });
-
-// //         return { book, score };
-// //       });
-
-// //       scoredBooks.sort((a, b) => b.score - a.score);
-
-// //       books = scoredBooks
-// //         .filter(item => item.score > 0)
-// //         .map(item => item.book)
-// //         .slice(0, 5);
-// //     }
-
-// //     // 📍 ================= LOCATE (WITH FIND) =================
-// //     if (intents.includes("LOCATE_BOOK") && books.length > 0) {
-// //       books = books.map(book => ({
-// //         ...book.toObject(),
-// //         navigation: explainCallNumber(book.call_number)
-// //       }));
-// //     }
-
-// //     // 📍 ================= PURE LOCATE =================
-// //     if (
-// //       intents.includes("LOCATE_BOOK") &&
-// //       !intents.includes("FIND_BOOK")
-// //     ) {
-// //       const book = await Book.findOne({
-// //         title: { $regex: keywords.join(" "), $options: "i" }
-// //       });
-
-// //       if (!book) {
-// //         return res.json({
-// //           intent: intents,
-// //           message: "❌ Book not found. Try a more specific title."
-// //         });
-// //       }
-
-// //       return res.json({
-// //         intent: intents,
-// //         message: `📍 Location guide for "${book.title}"`,
-// //         data: {
-// //           ...book.toObject(),
-// //           navigation: explainCallNumber(book.call_number)
-// //         }
-// //       });
-// //     }
-
-// //     // 📚 ================= RECOMMEND =================
-// //     if (intents.includes("RECOMMEND_BOOK")) {
-// //       const recommended = await Book.find().limit(5);
-
-// //       return res.json({
-// //         intent: intents,
-// //         message: "📚 Here are some recommended books",
-// //         data: recommended
-// //       });
-// //     }
-
-// //     // 🔥 ================= FINAL RESPONSE =================
-// //     if (books.length > 0) {
-// //       return res.json({
-// //         intent: intents,
-// //         message: intents.includes("LOCATE_BOOK")
-// //           ? "📍 Here are books and where to find them"
-// //           : `📚 Here are books related to "${query}"`, // ✅ better UX
-// //         data: books
-// //       });
-// //     }
-
-// //     // 💬 ================= FALLBACK =================
-// //     return res.json({
-// //       intent: intents,
-// //       message:
-// //         "🤖 I couldn't find relevant results. Try keywords like 'law', 'medicine', or 'engineering'."
-// //     });
-
-// //   } catch (error) {
-// //     console.error("AI Controller Error:", error);
-// //     res.status(500).json({ error: error.message });
-// //   }
-// // };
-
-
-
-// // import Book from "../models/book.js";
-// // import { detectIntent } from "../utils/intentClassifier.js";
-// // import { extractKeywords } from "../utils/keywordExtractor.js";
-// // import { explainCallNumber } from "../utils/callNumberExplainer.js";
-
-// // export const askAI = async (req, res) => {
-// //   try {
-// //     const { query } = req.body;
-
-// //     // 🔥 MULTI-INTENT SUPPORT
-// //     const intents = detectIntent(query); // now returns ARRAY
-// //     const keywords = extractKeywords(query);
-
-// //     let books = [];
-
-// //     // 🔍 ================= FIND BOOK =================
-// //     if (intents.includes("FIND_BOOK")) {
-// //       const searchConditions = keywords.map(word => ({
-// //         $or: [
-// //           { title: { $regex: word, $options: "i" } },
-// //           { subjects: { $regex: word, $options: "i" } },
-// //           { main_author: { $regex: word, $options: "i" } },
-// //           { notes: { $regex: word, $options: "i" } }
-// //         ]
-// //       }));
-
-// //       // 🔹 STRICT MATCH (AND)
-// //       books = await Book.find({
-// //         $and: searchConditions
-// //       }).limit(15);
-
-// //       // 🔹 FALLBACK (OR)
-// //       if (books.length === 0) {
-// //         books = await Book.find({
-// //           $or: searchConditions
-// //         }).limit(15);
-// //       }
-
-// //       // 🔥 RELEVANCE SCORING
-// //       const scoredBooks = books.map(book => {
-// //         let score = 0;
-
-// //         keywords.forEach(word => {
-// //           const regex = new RegExp(word, "i");
-
-// //           if (regex.test(book.title)) score += 6; // highest
-// //           if (book.subjects?.some(s => regex.test(s))) score += 5;
-// //           if (regex.test(book.main_author)) score += 3;
-// //           if (regex.test(book.notes)) score += 1;
-// //         });
-
-// //         return { book, score };
-// //       });
-
-// //       // 🔹 SORT BY SCORE
-// //       scoredBooks.sort((a, b) => b.score - a.score);
-
-// //       // 🔹 TAKE TOP RESULTS
-// //       books = scoredBooks.map(item => item.book).slice(0, 5);
-// //     }
-
-// //     // 📍 ================= LOCATE (ENHANCED) =================
-// //     if (intents.includes("LOCATE_BOOK") && books.length > 0) {
-// //       books = books.map(book => ({
-// //         ...book.toObject(),
-// //         navigation: explainCallNumber(book.call_number)
-// //       }));
-// //     }
-
-// //     // 📍 ================= PURE LOCATE (NO FIND) =================
-// //     if (
-// //       intents.includes("LOCATE_BOOK") &&
-// //       !intents.includes("FIND_BOOK")
-// //     ) {
-// //       const book = await Book.findOne({
-// //         title: { $regex: keywords.join(" "), $options: "i" }
-// //       });
-
-// //       if (!book) {
-// //         return res.json({
-// //           intent: intents,
-// //           message: "❌ Book not found. Try a more specific title."
-// //         });
-// //       }
-
-// //       return res.json({
-// //         intent: intents,
-// //         message: `📍 Location guide for "${book.title}"`,
-// //         data: {
-// //           ...book.toObject(),
-// //           navigation: explainCallNumber(book.call_number)
-// //         }
-// //       });
-// //     }
-
-// //     // 📚 ================= RECOMMEND =================
-// //     if (intents.includes("RECOMMEND_BOOK")) {
-// //       const recommended = await Book.find().limit(5);
-
-// //       return res.json({
-// //         intent: intents,
-// //         message: "📚 Here are some recommended books",
-// //         data: recommended
-// //       });
-// //     }
-
-// //     // 🔥 ================= FINAL RESPONSE =================
-// //     if (books.length > 0) {
-// //       return res.json({
-// //         intent: intents,
-// //         message: intents.includes("LOCATE_BOOK")
-// //           ? `📍 Here are books and where to find them`
-// //           : `📚 Here are books related to "${keywords.join(" ")}"`,
-// //         data: books
-// //       });
-// //     }
-
-// //     // 💬 ================= FALLBACK =================
-// //     return res.json({
-// //       intent: intents,
-// //       message:
-// //         "🤖 I couldn't find exact matches. Try different keywords like 'law', 'medicine', or 'engineering'."
-// //     });
-
-// //   } catch (error) {
-// //     res.status(500).json({ error: error.message });
-// //   }
-// // };

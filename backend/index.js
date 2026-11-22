@@ -5,6 +5,10 @@ import bookRoute from "./routes/bookRoute.js";
 import aiRoute from "./routes/aiRoute.js";
 import authRoute from "./routes/authRoute.js";
 import adminRoute from "./routes/adminRoute.js";
+import profileRoutes from "./routes/profileRoutes.js";
+
+
+
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -39,6 +43,8 @@ app.use("/api/books", bookRoute);
 app.use("/api/ai", aiRoute);
 app.use("/api/auth", authRoute);
 app.use("/api/admin", adminRoute);
+app.use("/api/profile", profileRoutes);   
+
 
 app.listen(8080, () => {
   console.log("🚀 Server running on port 8080");

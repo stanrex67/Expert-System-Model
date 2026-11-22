@@ -28,6 +28,15 @@ const userSchema = new mongoose.Schema({
     default: "student"
   },
 
+  profile: {
+  faculty: String, department: String, course: String, level: String,
+  dateOfBirth: Date, stateOfOrigin: String, completedAt: Date,
+  },
+  profileCompleted: { type: Boolean, default: false },
+
+  lastQuery: String,
+  lastBooks: [String],
+
   isVerified: { type: Boolean, default: false },
 
   verificationToken: String,

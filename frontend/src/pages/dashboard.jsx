@@ -26,6 +26,8 @@ import API      from "../api/authApi";
 import BookCard from "../components/BookCard";
 import DatabaseCard from "../components/DatabaseCard";
 import CloseIcon from "@mui/icons-material/Close";  
+import ProfileModal from "../components/ProfileModal";
+import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const T = {
@@ -73,6 +75,8 @@ const intentLabel = (raw = "") => {
     SMALL_TALK:     "💬 Help",
     GENERAL_HELP:   "💬 Help",
     DEFINITION:     "💭 Definition",
+    BOOK_CLARIFY:  "💬 Help",
+    RESEARCH_HELP: "🔬 Research Help",
   };
   return raw.split(",").map(s => map[s.trim()] || s.trim()).join(" · ");
 };
@@ -94,17 +98,18 @@ function TypingText({ text = "", isLatest }) {
   const safe = cleanText(text);
   const [displayed, setDisplayed] = useState(isLatest ? "" : safe);
 
-  useEffect(() => {
-    if (!isLatest) { setDisplayed(safe); return; }
-    let i = 0;
-    setDisplayed("");
-    const iv = setInterval(() => {
-      if (i >= safe.length) { clearInterval(iv); return; }
-      setDisplayed(p => p + safe[i]);
-      i++;
-    }, 12);
-    return () => clearInterval(iv);
-  }, [safe, isLatest]);
+useEffect(() => {
+  if (!isLatest) { setDisplayed(safe); return; }
+  const chars = Array.from(safe);   // keeps emoji intact
+  let i = 0;
+  setDisplayed("");
+  const iv = setInterval(() => {
+    i++;
+    setDisplayed(chars.slice(0, i).join(""));
+    if (i >= chars.length) clearInterval(iv);
+  }, 12);
+  return () => clearInterval(iv);
+}, [safe, isLatest]);
 
   return (
   <Typography
@@ -340,6 +345,19 @@ export default function Dashboard({ resetRef }) {
   const messagesBoxRef = useRef(null);
 const [showScrollButton, setShowScrollButton] = useState(false);
 
+const [profile, setProfile]         = useState(null);
+const [profileOpen, setProfileOpen] = useState(false);
+const [suggestions, setSuggestions] = useState([]);
+const profileComplete = !!profile?.completedAt;
+const FALLBACK = [
+  { label: "Find books on engineering", query: "Find books on engineering" },
+  { label: "Where are law books?", query: "Where are law books?" },
+  { label: "How do I borrow a book?", query: "How do I borrow a book?" },
+  { label: "Is the library open on Saturday?", query: "Is the library open on Saturday?" },
+  { label: "Find books on medicine", query: "Find books on medicine" },
+  { label: "What is the borrowing limit?", query: "What is the borrowing limit?" },
+];
+
 
 
   const token    = localStorage.getItem("token");
@@ -348,9 +366,9 @@ const [showScrollButton, setShowScrollButton] = useState(false);
   const effectiveWidth = (!isMobile && sidebarOpen) ? sidebarWidth : 0;
 
   // Register reset fn for Navbar "New Chat"
-  useEffect(() => {
-    if (resetRef) resetRef.current = () => { setChat([]); setQuery(""); setConversationId(null); };
-  }, [resetRef]);
+  // useEffect(() => {
+  //   if (resetRef) resetRef.current = () => { setChat([]); setQuery(""); setConversationId(null); };
+  // }, [resetRef]);
 
   // Auto-scroll
   useEffect(() => {
@@ -371,6 +389,47 @@ const [showScrollButton, setShowScrollButton] = useState(false);
     }
   }, [navigate]);
 
+  const loadSuggestions = useCallback(async () => {
+  try { const r = await API.get("/profile/suggestions"); setSuggestions(r.data.suggestions || []); } catch { /* keep fallback */ }
+}, []);
+
+
+
+// Register reset fn for Navbar "New Chat"
+useEffect(() => {
+  if (resetRef) {
+    resetRef.current = () => {
+      setChat([]);
+      setQuery("");
+      setConversationId(null);
+      loadSuggestions();
+    };
+  }
+}, [resetRef, loadSuggestions]);
+useEffect(() => {
+  if (!token) return;
+  let timer;
+  (async () => {
+    try {
+      const r = await API.get("/profile");
+      setProfile(r.data.profile);
+      // Pop up only while incomplete. "Remind me later" lasts for this browser session, so it returns on the next login.
+      if (!r.data.profileCompleted && !sessionStorage.getItem("profileSnoozed")) {
+        timer = setTimeout(() => setProfileOpen(true), 700);
+      }
+    } catch { /* non-critical */ }
+  })();
+  loadSuggestions();
+  return () => clearTimeout(timer);
+}, [token, loadSuggestions]);
+
+const handleProfileSaved = (p) => {
+  setProfile(p); setProfileOpen(false);
+  sessionStorage.removeItem("profileSnoozed");
+  localStorage.setItem("user", JSON.stringify({ ...getStoredUser(), profileCompleted: true }));
+  loadSuggestions();
+};
+const handleSnooze = () => { sessionStorage.setItem("profileSnoozed", "1"); setProfileOpen(false); };
   useEffect(() => {
     if (!token) return;
     refreshConversations();
@@ -551,11 +610,13 @@ const handleDeleteMessage = async (index) => {
     }
   };
 
-  const handleNewChat = () => { setChat([]); setQuery(""); setConversationId(null); };
+const handleNewChat = () => { setChat([]); setQuery(""); setConversationId(null); loadSuggestions(); };
 
-  const handleLogout = () => {
+const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    sessionStorage.removeItem("profileSnoozed");
+
     navigate("/");
   };
 
@@ -763,6 +824,12 @@ const handleDeleteMessage = async (index) => {
             display: { xs: "none", sm: "flex" },
           }} />
 
+          <Tooltip title="My profile">
+            <IconButton size="small" onClick={() => setProfileOpen(true)} sx={{ color: T.navy, "&:hover": { color: T.gold } }}>
+              <ManageAccountsIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+
           {/* Mobile new chat */}
           {isMobile && (
             <Tooltip title="New chat">
@@ -810,44 +877,54 @@ const handleDeleteMessage = async (index) => {
 
               {/* Suggestion chips */}
              
+              {!profileComplete && (
+                <Chip
+                  label="✨ Complete your profile for personalised suggestions"
+                  clickable
+                  onClick={() => setProfileOpen(true)}
+                  sx={{
+                    mt: 2,
+                    bgcolor: T.gold,
+                    color: T.navy,
+                    fontWeight: 600,
+                  }}
+                />
+              )}
+
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    md: "1fr 1fr",
-                  },
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
                   gap: 2,
-                  mt: 4,
+                  mt: 3,
                   width: "100%",
                   maxWidth: 700,
                 }}
               >
                 {[
-                  { label: "Find books on engineering" },
-                  { label: "Where are law books?" },
-                  { label: "How do I borrow a book?" },
-                  { label: "Is the library open on Saturday?" },
-                  { label: "Find books on medicine" },
-                  { label: "What is the borrowing limit?" },
-                  { label: "🏛️ UNIJOS Institutional Repository", link: "https://irepos.unijos.edu.ng" },  // ← NEW
-                ].map(({ label, link }) => (
+                  ...(suggestions.length ? suggestions : FALLBACK),
+                  {
+                    label: "🏛️ UNIJOS Institutional Repository",
+                    link: "https://irepos.unijos.edu.ng",
+                  },
+                ].map(({ label, query: q, link }) => (
                   <Chip
                     key={label}
                     label={label}
                     clickable
-                    onClick={() => {
-                      if (link) {
-                        window.open(link, "_blank", "noopener,noreferrer");
-                      } else {
-                        handleAsk(label);
-                      }
-                    }}
+                    onClick={() =>
+                      link
+                        ? window.open(link, "_blank", "noopener,noreferrer")
+                        : handleAsk(q || label)
+                    }
                     sx={{
                       width: "100%",
                       height: 44,
                       fontSize: "0.9rem",
-                      "&:hover": { bgcolor: T.gold, color: T.navy },
+                      "&:hover": {
+                        bgcolor: T.gold,
+                        color: T.navy,
+                      },
                       transition: "all 0.15s",
                     }}
                   />
@@ -989,6 +1066,8 @@ const handleDeleteMessage = async (index) => {
                       </Box>
                     </Box>
                   )}
+
+                  
 
                   {msg.databases?.length > 0 && (
                   <Box width="100%" sx={{ maxWidth: { xs: "100%", md: "78%" } }}>
@@ -1163,6 +1242,8 @@ const handleDeleteMessage = async (index) => {
           </Typography>
         </Box>
       </Box>
+      <ProfileModal open={profileOpen} initial={profile} isComplete={profileComplete}
+  onSaved={handleProfileSaved} onSnooze={handleSnooze} onClose={() => setProfileOpen(false)} />
     </Box>
   );
 }
