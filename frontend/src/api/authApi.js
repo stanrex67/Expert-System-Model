@@ -1,8 +1,8 @@
 import axios from "axios";
 
 const API = axios.create({
-  // baseURL: "https://gleaming-warmth-production-4722.up.railway.app/api/",
-  baseURL: "http://localhost:8080/api/"
+  baseURL: "https://expert-system-model-production.up.railway.app/api/",
+  // baseURL: "http://localhost:8080/api/"
   
 });
 
