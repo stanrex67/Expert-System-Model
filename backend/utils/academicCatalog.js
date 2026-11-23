@@ -74,8 +74,81 @@ d("Computer Science", "Natural Sciences", NB,
   d("History", "Arts", NG, ["D", "DT"], ["history", "nigeria", "africa"]),
   d("Religious Studies", "Arts", NG, ["B"], ["christianity", "islam", "religion"]),
   // Education
-  d("Education", "Education", `${NB} and ${NG}`, ["L"], ["teaching", "curriculum", "educational", "counselling"]),
-  d("Science Education", "Education", `${NB} and ${NG}`, ["Q", "L"], ["science education", "teaching of science", "curriculum"]),
+ 
+// Education
+d(
+  "Arts Education",
+  "Education",
+  `${NB} and ${NG}`,
+  ["L"],
+  ["arts education", "language education", "literature education", "teaching of arts", "arts curriculum"]
+),
+
+d(
+  "Educational Foundation",
+  "Education",
+  `${NB} and ${NG}`,
+  ["L"],
+  ["educational foundations", "philosophy of education", "history of education", "sociology of education", "educational psychology"]
+),
+
+d(
+  "Physical and Health Education",
+  "Education",
+  `${NB} and ${NG}`,
+  ["L", "GV"],
+  ["physical education", "health education", "sports education", "sports science", "physical fitness"]
+),
+
+d(
+  "Science and Technology Education",
+  "Education",
+  `${NB} and ${NG}`,
+  ["L", "Q"],
+  ["science education", "technology education", "science teaching", "educational technology", "science curriculum"]
+),
+
+d(
+  "Social Science Education",
+  "Education",
+  `${NB} and ${NG}`,
+  ["L"],
+  ["social science education", "social studies education", "civic education", "geography education", "economics education"]
+),
+
+d(
+  "Special Education and Rehabilitation Sciences",
+  "Education",
+  `${NB} and ${NG}`,
+  ["L"],
+  ["special education", "inclusive education", "rehabilitation", "learning disabilities", "disability studies"]
+),
+
+d(
+  "Library and Information Science",
+  "Education",
+  `${NB} and ${NG}`,
+  ["Z"],
+  ["library science", "information science", "library management", "cataloguing", "classification", "information management"]
+),
+
+// Legacy entries — retain these to support existing student profiles
+d(
+  "Education",
+  "Education",
+  `${NB} and ${NG}`,
+  ["L"],
+  ["teaching", "curriculum", "educational", "counselling"]
+),
+
+d(
+  "Science Education",
+  "Education",
+  `${NB} and ${NG}`,
+  ["Q", "L"],
+  ["science education", "teaching of science", "curriculum"]
+),
+
   // Fallback
   d("Other / Not listed", "Other", null, [], []),
 ];
